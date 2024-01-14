@@ -12,6 +12,7 @@ import modules.connect as ct
 # Global Variables
 current_edit_id = None
 
+
 # Database connection
 def create_db_connection():
     return mysql.connector.connect(
@@ -223,8 +224,9 @@ def populate_fields_for_edit(selected_id):
             kit_name_dropdown.var.set(kit_name)
             type_index = 2
             type_name = row[type_index] if row[type_index] else 'None'
-            type_dropdown.var.set(type_name)
+            type_name_dropdown.var.set(type_name)
             # Check and set the insured date
+            root.update_idletasks()
             if insured_date:
                 date_insured_input.set_date(insured_date)
                 is_insured_var.set(True)
@@ -264,7 +266,7 @@ def update_equipment():
         equipment_status = status_var.get()
         equipment_model_number = entry_model_number.get()
         equipment_kit_name = kit_name_dropdown.var.get()
-        equipment_type = type_dropdown.var.get()
+        equipment_type = type_name_dropdown.var.get()
         if equipment_kit_name == 'None':
             equipment_kit_name = None
         
@@ -311,8 +313,6 @@ def post_update_actions(selected_index):
         listbox.activate(selected_index)
         listbox.see(selected_index)  # Ensures the selected item is visible in the listbox
         
-    # Focus on the root window after updating
-    root.focus_set()
 
 ###
 def add_equipment():
@@ -332,7 +332,7 @@ def add_equipment():
         equipment_url = entry_url.get()
         equipment_dateInsured = date_insured_input.get_date() if is_insured_var.get() else None
         equipment_kit_name = kit_name_dropdown.var.get()
-        equipment_type = type_dropdown.var.get()
+        equipment_type = type_name_dropdown.var.get()
         
         query = """INSERT INTO equipment (name, brand, model, description, serial_number, 
                     purchase_company, date_of_purchase, cost, website_url, date_insured, status, model_number, kit_name, type) 
@@ -354,7 +354,7 @@ def add_equipment():
 ###
 def reset_fields():
     global current_edit_id
-    type_dropdown.var.set("None")
+    type_name_dropdown.var.set("None")
     entry_name.delete(0, tk.END)
     entry_brand.delete(0, tk.END)
     entry_model.delete(0, tk.END)
@@ -439,7 +439,16 @@ def get_kit_names():
     kits = [row[0] for row in cursor]
     cursor.close()
     conn.close()
-    return ["All Equipment"] + kits
+    return ["All Kits"] + kits
+
+def get_types():
+    conn = create_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT type FROM equipment WHERE type IS NOT NULL")
+    types = [row[0] for row in cursor]
+    cursor.close()
+    conn.close()
+    return ["All Types"] + types
 
 # Detail Display Function
 def display_details(selected_id):
@@ -523,7 +532,7 @@ details_frame.grid(row=1, column=2, padx=10, pady=10, sticky='w')
 ### when a new input is added these functions must be modified: populate_fields_for_edit, reset_fields, add_equipment, update_equipment
 label_type = tk.Label(left_frame, text="Type:")
 label_type.grid(row=0, column=0, sticky='e')
-type_dropdown = ColumnDropdown(left_frame, "type", create_db_connection(), row=0, column=1, button_label="New Type")
+type_name_dropdown = ColumnDropdown(left_frame, "type", create_db_connection(), row=0, column=1, button_label="New Type")
 
 label_name = tk.Label(left_frame, text="Name:")
 label_name.grid(row=1, column=0, sticky='e')
@@ -608,26 +617,52 @@ reset_button.grid(row=left_frame_buttons_row, column=3, columnspan=2)
 listbox = tk.Listbox(right_frame, width=50, height=40)
 listbox.grid(row=1, column=0, padx=10, pady=10, columnspan=2)
 listbox.bind('<<ListboxSelect>>', on_select)
-def update_listbox_by_kit(kit_name):
+
+
+def update_listbox_by_filters():
+    selected_kit = kit_var.get()
+    selected_type = type_var.get()
+    
     listbox.delete(0, tk.END)  # Clear the current list
     conn = create_db_connection()
     cursor = conn.cursor()
     query = "SELECT id, name FROM equipment"
-    if kit_name != "All Equipment":
-        query += " WHERE kit_name = %s"
-        cursor.execute(query, (kit_name,))
-    else:
-        cursor.execute(query)
+    
+    # Build the query based on filters
+    conditions = []
+    params = []
+    if selected_kit != "All Kits":
+        conditions.append("kit_name = %s")
+        params.append(selected_kit)
+    if selected_type != "All Types":
+        conditions.append("type = %s")
+        params.append(selected_type)
+        
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+        
+    cursor.execute(query, params)
     for id, name in cursor:
         listbox.insert(tk.END, f"{id}: {name}")
     cursor.close()
     conn.close()
-kit_var = tk.StringVar() # Dropdown for kit names
-kit_var.set("All Equipment")  # default value
-kit_dropdown = tk.OptionMenu(right_frame, kit_var, *get_kit_names(), command=update_listbox_by_kit)
-kit_dropdown.grid(row=0, column=0, padx=10, pady=10, columnspan=2)  # place this above the listbox in your grid
 
-update_listbox_by_kit("All Equipment")# Initial population of listbox
+
+
+# Kit name dropdown
+kit_var = tk.StringVar()
+kit_var.set("All Kits")  # Updated default value
+kit_dropdown = tk.OptionMenu(right_frame, kit_var, *get_kit_names(), command=lambda _: update_listbox_by_filters())
+kit_dropdown.grid(row=0, column=0, padx=10, pady=10)
+
+# Type dropdown
+type_var = tk.StringVar()
+type_var.set("All Types")  # Updated default value
+type_dropdown = tk.OptionMenu(right_frame, type_var, *get_types(), command=lambda _: update_listbox_by_filters())
+type_dropdown.grid(row=0, column=1, padx=10, pady=10)
+
+# Initialize listbox with all equipment
+update_listbox_by_filters()
 
 
 edit_button = tk.Button(right_frame, text="Edit Equipment", command=edit_equipment)
