@@ -4,6 +4,7 @@ from tkinter import messagebox
 from db import DatabaseManager
 from utils import initialize_fonts, display_image
 from widgets import DateInput, ColumnDropdown
+import webbrowser
 
 class MainApplication(tk.Tk):
     def __init__(self):
@@ -33,76 +34,9 @@ class MainApplication(tk.Tk):
     def setup_frames(self):
         self.setup_left_frame()
         self.setup_right_frame()
-        #self.setup_shipping_frame()
         self.setup_image_frame()
         self.setup_details_frame()
         self.setup_bottom_frame()
-        
-    def setup_shipping_frame(self):
-        self.shipping_frame = tk.Frame(self, borderwidth=1, relief="solid")
-        self.shipping_frame.grid(column=0, row=1, padx=10, pady=10)
-        
-        # Initialize row index for grid placement
-        row = 0
-        
-        # Carrier Input
-        tk.Label(self.shipping_frame, text="Carrier:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_carrier = tk.Entry(self.shipping_frame)
-        self.entry_carrier.grid(row=row, column=1)
-        row += 1
-        
-        # Tracking Number Input
-        tk.Label(self.shipping_frame, text="Tracking Number:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_tracking_number = tk.Entry(self.shipping_frame)
-        self.entry_tracking_number.grid(row=row, column=1)
-        row += 1
-        
-        # Shipping Address Input
-        tk.Label(self.shipping_frame, text="Shipping Address:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_shipping_address = tk.Entry(self.shipping_frame)
-        self.entry_shipping_address.grid(row=row, column=1)
-        row += 1
-        
-        # City Input
-        tk.Label(self.shipping_frame, text="City:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_shipping_city = tk.Entry(self.shipping_frame)
-        self.entry_shipping_city.grid(row=row, column=1)
-        row += 1
-        
-        # State Input
-        tk.Label(self.shipping_frame, text="State:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_shipping_state = tk.Entry(self.shipping_frame)
-        self.entry_shipping_state.grid(row=row, column=1)
-        row += 1
-        
-        # ZIP Code Input
-        tk.Label(self.shipping_frame, text="ZIP Code:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_shipping_zip = tk.Entry(self.shipping_frame)
-        self.entry_shipping_zip.grid(row=row, column=1)
-        row += 1
-        
-        # Shipped Date Input using DateInput Widget
-        tk.Label(self.shipping_frame, text="Shipped Date:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.shipped_date_input = DateInput(self.shipping_frame, row=row, column=1)
-        row += 1
-        
-        # Box Number Input
-        tk.Label(self.shipping_frame, text="Box Number:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_box_number = tk.Entry(self.shipping_frame)
-        self.entry_box_number.grid(row=row, column=1)
-        row += 1
-        
-        # Destination Name Input
-        tk.Label(self.shipping_frame, text="Destination Name:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_destination_name = tk.Entry(self.shipping_frame)
-        self.entry_destination_name.grid(row=row, column=1)
-        row += 1
-        
-        # Shipping Status Input
-        tk.Label(self.shipping_frame, text="Shipping Status:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_shipping_status = tk.Entry(self.shipping_frame)
-        self.entry_shipping_status.grid(row=row, column=1)
-        row += 1
         
     def setup_image_frame(self):
         self.image_frame = tk.Frame(self, bg="white")
@@ -112,7 +46,7 @@ class MainApplication(tk.Tk):
     def setup_details_frame(self):
         self.details_frame = tk.Frame(self)
         self.details_frame.grid(column=2, row=1, padx=10, pady=10)
-        self.details_canvas = tk.Canvas(self.details_frame)
+        self.details_canvas = tk.Canvas(self.details_frame, height=400)
         self.scrollbar = tk.Scrollbar(self.details_frame, orient="vertical", command=self.details_canvas.yview)
         self.container_frame = tk.Frame(self.details_canvas)
         
@@ -264,7 +198,7 @@ class MainApplication(tk.Tk):
         self.type_dropdown.grid(column=1,row=1)
         
         # Equipment Listbox
-        self.equipment_listbox = tk.Listbox(self.right_frame, font=self.value_font, width=50, height=40)
+        self.equipment_listbox = tk.Listbox(self.right_frame, font=self.value_font, width=50, height=50)
         self.equipment_listbox.grid(row=2, column=0, columnspan=2, padx=10, pady=10)
         self.equipment_listbox.bind('<<ListboxSelect>>', self.on_select)
         
@@ -354,12 +288,9 @@ class MainApplication(tk.Tk):
             return
         
         equipment_tuple = equipment_details[0]
-        if len(equipment_tuple) < 18:  # Adjust the number based on your data structure
-            print("Error: Equipment tuple does not have enough elements.")
-            return
         
         # Check if equipment_tuple has enough elements
-        if len(equipment_tuple) < 18:  # Adjust the number based on your data structure
+        if len(equipment_tuple) < 29:  # Adjust the number based on your data structure
             print("Error: Equipment tuple does not have enough elements.")
             return
     
@@ -386,7 +317,6 @@ class MainApplication(tk.Tk):
         self.entry_sn.insert(0, equipment_tuple[5])  # Serial Number
         self.entry_weight.insert(0, str(equipment_tuple[28]))
         self.status_var.set(equipment_tuple[11])  # Status
-        self.kit_name_dropdown.var.set(equipment_tuple[18])  # Kit Name
         self.entry_purchaseCompany.insert(0, equipment_tuple[6])  # Purchase Company
         if equipment_tuple[7]:  # Checking if the date_of_purchase is not None
             self.purchase_date_input.set_date(equipment_tuple[7])
@@ -412,10 +342,9 @@ class MainApplication(tk.Tk):
         # Update the Kit Name Dropdown
         kit_name_index = 17  # Update this index based on your database structure
         kit_name = equipment_tuple[kit_name_index]
-        if kit_name:
-            self.kit_name_dropdown.var.set(kit_name)
-        else:
-            self.kit_name_dropdown.reset_to_default()
+        if isinstance(kit_name, tuple) and len(kit_name) > 0:
+            kit_name = kit_name[0]
+        self.kit_name_dropdown.var.set(kit_name)
     
     
         # Show update button, hide add button
@@ -425,7 +354,7 @@ class MainApplication(tk.Tk):
         if self.current_editing_id is None:
             messagebox.showerror("Error", "No equipment selected for editing")
             return
-        
+        print(self.kit_name_dropdown.var.get())
         # Collecting data from UI elements
         updated_data = {
             'name': self.entry_name.get(),
@@ -549,11 +478,12 @@ class MainApplication(tk.Tk):
                             "Box Number", "Destination Name", "Shipping Status", "Weight"]
             
             for index, (col_name, detail) in enumerate(zip(column_names, equipment_tuple)):
-                if col_name == "Website URL" and detail: 
+                if col_name == "Website URL" and detail:
                     # For Website URL, create a clickable hyperlink
                     hyperlink = tk.Label(self.container_frame, text=detail, fg="blue", cursor="hand2")
                     hyperlink.grid(row=index, column=1, sticky="w")
-                    hyperlink.bind("<Button-1>", lambda e: webbrowser.open(detail))
+                    # Update the lambda function to properly capture the current 'detail' value
+                    hyperlink.bind("<Button-1>", lambda e, url=detail: webbrowser.open(url) if url else None)
                 else:
                     # For all other columns, display the detail as text
                     value_label = tk.Label(self.container_frame, text=str(detail), font=self.value_font)
@@ -561,11 +491,11 @@ class MainApplication(tk.Tk):
                     
                 # Create and place the label for the column name
                 label = tk.Label(self.container_frame, text=col_name + ":", font=self.bold_font)
-                label.grid(row=index, column=0, sticky="w")        
+                label.grid(row=index, column=0, sticky="w")
             
     def setup_bottom_frame(self):
         self.bottom_frame = tk.Frame(self)
-        self.bottom_frame.grid(column=0,row=2, padx=10, pady=10)
+        self.bottom_frame.grid(column=0,row=1, padx=10, pady=10)
         
         row=0
         
@@ -804,6 +734,7 @@ class MainApplication(tk.Tk):
         self.entry_model_number.delete(0, tk.END)
         self.entry_description.delete(0, tk.END)
         self.entry_sn.delete(0, tk.END)
+        self.entry_weight.delete(0, tk.END)
         self.entry_purchaseCompany.delete(0, tk.END)
         self.entry_cost.delete(0, tk.END)
         self.entry_url.delete(0, tk.END)
