@@ -38,27 +38,37 @@ def initialize_fonts():
 
 def display_image(image_frame, item_name):
     """
-    Displays an image in the specified frame.
+    Displays an image in the specified frame. Clears the previous image if any.
 
     :param image_frame: Frame where the image is to be displayed.
     :param item_name: Name of the item whose image is to be displayed.
     """
+    # Clear the previous image
+    for widget in image_frame.winfo_children():
+        widget.destroy()
+        
     found_image = False
     for extension in ['.png', '.jpg']:
         image_path = os.path.join('Pics', f'{item_name}{extension}')
         if os.path.exists(image_path):
             found_image = True
             break
-
+        
     if found_image:
-        image = Image.open(image_path)
-        max_size = 400
-        image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-        photo = ImageTk.PhotoImage(image)
-        image_label = tk.Label(image_frame, image=photo, anchor="w")
-        image_label.image = photo
-        image_label.grid(row=0, column=0, sticky='w')
+        try:
+            image = Image.open(image_path)
+            max_size = 400
+            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(image)
+            image_label = tk.Label(image_frame, image=photo, anchor="w")
+            image_label.image = photo
+            image_label.grid(row=0, column=0, sticky='w')
+        except Exception as e:
+            print(f"Error displaying image: {e}")
+            error_label = tk.Label(image_frame, text="Error displaying image", anchor="w")
+            error_label.grid(row=0, column=0, sticky='w')
     else:
-        image_label = tk.Label(image_frame)
-        image_label.grid(row=0, column=0, sticky='w')
+        no_image_label = tk.Label(image_frame, text="No Image Available", anchor="w")
+        no_image_label.grid(row=0, column=0, sticky='w')
+        
         
