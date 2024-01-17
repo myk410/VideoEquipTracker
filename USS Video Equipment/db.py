@@ -59,7 +59,18 @@ class DatabaseManager:
     def add_or_update_equipment(self, data, is_update=False, equipment_id=None):
         conn = self.create_connection()
         cursor = conn.cursor()
+        
+        # Convert weight to float (or the appropriate data type)
         try:
+            data['weight'] = float(data['weight']) if data['weight'] else 0.0
+        except ValueError:
+            print("Invalid weight value. Setting to 0.0")
+            data['weight'] = 0.0
+        
+        try:
+            # Convert kit_name to string outside the params tuple
+            data['kit_name'] = str(data['kit_name'])
+            
             if is_update:
                 # Update existing equipment
                 query = """UPDATE equipment SET name=%s, brand=%s, model=%s, description=%s, serial_number=%s, purchase_company=%s, date_of_purchase=%s, cost=%s, website_url=%s, date_insured=%s, status=%s, model_number=%s, kit_name=%s, type=%s, weight=%s WHERE id=%s"""
@@ -79,6 +90,7 @@ class DatabaseManager:
         finally:
             cursor.close()
             conn.close()
+            
 
     def delete_equipment(self, equipment_id):
         query = "DELETE FROM equipment WHERE id = %s"
@@ -90,7 +102,7 @@ class DatabaseManager:
     
     def fetch_kit_names(self):
         query = "SELECT DISTINCT kit_name FROM equipment WHERE kit_name IS NOT NULL"
-        kit_names = [row[0] for row in self.fetch_data(query)]
+        kit_names = [str(row[0]) for row in self.fetch_data(query)]  # Convert to string
         return kit_names
     
     def get_unique_types(self):
