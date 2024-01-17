@@ -42,8 +42,15 @@ class DatabaseManager:
 
     def get_equipment_details(self, equipment_id):
         query = "SELECT * FROM equipment WHERE id = %s"
-        details = self.fetch_data(query, (equipment_id,))
-        return details
+        try:
+            with self.create_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (equipment_id,))
+                results = cursor.fetchall()
+                return results  # Only return the results
+        except Error as e:
+            print(f"Error fetching data: {e}")
+            return []
 
     def get_unique_values(self, column_name):
         query = f"SELECT DISTINCT {column_name} FROM equipment WHERE {column_name} IS NOT NULL"
@@ -55,14 +62,8 @@ class DatabaseManager:
         try:
             if is_update:
                 # Update existing equipment
-                query = """UPDATE equipment SET 
-                                        name=%s, brand=%s, model=%s, description=%s, serial_number=%s,
-                                        purchase_company=%s, date_of_purchase=%s, cost=%s, website_url=%s,
-                                        date_insured=%s, status=%s, model_number=%s, kit_name=%s, type=%s
-                                        WHERE id=%s"""
-                params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'],
-                                    data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'],
-                                    data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], equipment_id)
+                query = """UPDATE equipment SET name=%s, brand=%s, model=%s, description=%s, serial_number=%s, purchase_company=%s, date_of_purchase=%s, cost=%s, website_url=%s, date_insured=%s, status=%s, model_number=%s, kit_name=%s, type=%s, weight=%s WHERE id=%s"""
+                params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], equipment_id)
             else:
                 # Add new equipment
                 query = """INSERT INTO equipment (name, brand, model, description, serial_number, purchase_company, date_of_purchase, cost, website_url, date_insured, status, model_number, kit_name, type)
@@ -81,6 +82,7 @@ class DatabaseManager:
 
     def delete_equipment(self, equipment_id):
         query = "DELETE FROM equipment WHERE id = %s"
+        self.execute_query(query, (equipment_id,))
         
     def get_equipment_list(self):
         query = "SELECT id, name FROM equipment"
@@ -96,3 +98,26 @@ class DatabaseManager:
         results = self.fetch_data(query)
         return [result[0] for result in results]  # Assuming each result is a tuple with the type as the first element
     
+    def update_shipping_info(self, equipment_id, shipping_info):
+        # Start constructing the query
+        query = "UPDATE equipment SET "
+        
+        # List to store query parameters
+        params = []
+        
+        # Add each field to the query only if it's in the shipping_info dictionary
+        query_parts = []
+        for field, value in shipping_info.items():
+            query_parts.append(f"{field} = %s")
+            params.append(value)
+            
+        # Join the query parts with commas
+        query += ", ".join(query_parts)
+        
+        # Add the WHERE clause to target the specific equipment item
+        query += " WHERE id = %s"
+        params.append(equipment_id)
+        
+        # Execute the query
+        self.execute_query(query, params)
+        
