@@ -75,7 +75,8 @@ class ColumnDropdown:
             self.var.set(self.options[0])
 
     def update_options(self):
-        self.options = ['None'] + self.db_manager.get_unique_values(self.column_name)
+        unique_values = self.db_manager.get_unique_values(self.column_name)
+        self.options = ['None'] + [str(value[0]) for value in unique_values if value and isinstance(value, tuple)]
         self.var.set(self.options[0])
 
     def create_add_popup(self):
@@ -90,6 +91,7 @@ class ColumnDropdown:
         add_button.pack()
 
     def add_new_option_to_list(self, new_value):
+        new_value = str(new_value).strip()  # Ensure it's a string and remove leading/trailing spaces
         if new_value and new_value != 'None' and new_value not in self.options:
             self.options.append(new_value)
             self.var.set(new_value)
