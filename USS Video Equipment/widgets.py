@@ -105,3 +105,10 @@ class ColumnDropdown:
         self.dropdown_menu = tk.OptionMenu(self.dropdown_menu.master, self.var, *self.options)
         self.dropdown_menu.grid(row=row, column=column, columnspan=columnspan)
         
+    def set_value(self, value):
+        """Set the dropdown to a specific value, adding it to options if not already present."""
+        if value not in self.options:
+            self.options.append(value)
+            self.update_dropdown()
+        self.var.set(value)
+        
