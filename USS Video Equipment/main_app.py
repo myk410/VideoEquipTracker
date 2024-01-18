@@ -10,7 +10,7 @@ class MainApplication(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("USS Video Production Equipment Tracker")
-        self.bold_font, self.value_font = initialize_fonts()
+        self.heading_font, self.bold_font, self.value_font = initialize_fonts()
         self.db_manager = DatabaseManager()
         self.current_editing_id = None  # Add this line
         self.kit_names = ["All Kits"] + self.get_kit_names()
@@ -32,21 +32,31 @@ class MainApplication(tk.Tk):
         return self.db_manager.fetch_kit_names()
         
     def setup_frames(self):
-        self.setup_left_frame()
+        self.setup_left_frame()  # Create and grid left_frame first
+        self.setup_middle_frame()
         self.setup_right_frame()
-        self.setup_image_frame()
-        self.setup_details_frame()
-        self.setup_bottom_frame()
+        
+    def setup_left_frame(self):
+        self.left_frame = tk.Frame(self)
+        self.left_frame.grid(column=0, row=0, rowspan=2, padx=10, pady=10, sticky='n')
+        self.setup_add_update_frame()  # Inside setup_left_frame
+        self.setup_window_frame()      # Inside setup_left_frame
+        
+    def setup_right_frame(self):
+        self.right_frame = tk.Frame(self)
+        self.right_frame.grid(column=2, row=0, padx=10, pady=10, sticky='n')
+        self.setup_image_frame()  # Inside setup_right_frame
+        self.setup_details_frame()  # Inside setup_right_frame
+        self.right_frame.grid_remove()
         
     def setup_image_frame(self):
-        self.image_frame = tk.Frame(self, bg="white")
-        self.image_frame.grid(column = 2, row=0, padx=10, pady=10)
-        # Initially, the image frame will be empty
+        self.image_frame = tk.Frame(self.right_frame, bg="white")
+        self.image_frame.grid(column=0, row=0, padx=10, pady=10, sticky='n')
         
     def setup_details_frame(self):
-        self.details_frame = tk.Frame(self)
-        self.details_frame.grid(column=2, row=1, padx=10, pady=10)
-        self.details_canvas = tk.Canvas(self.details_frame, height=400)
+        self.details_frame = tk.Frame(self.right_frame)
+        self.details_frame.grid(column=0, row=1, padx=10, pady=10, sticky='n')
+        self.details_canvas = tk.Canvas(self.details_frame, height=400, width=350)
         self.scrollbar = tk.Scrollbar(self.details_frame, orient="vertical", command=self.details_canvas.yview)
         self.container_frame = tk.Frame(self.details_canvas)
         
@@ -56,111 +66,116 @@ class MainApplication(tk.Tk):
         self.details_canvas.create_window((0, 0), window=self.container_frame, anchor="nw")
         self.container_frame.bind("<Configure>", lambda event: self.details_canvas.configure(scrollregion=self.details_canvas.bbox("all")))
 
-    def setup_left_frame(self):
-        self.left_frame = tk.Frame(self, borderwidth=1, relief="solid")
-        self.left_frame.grid(column=0, row=0, padx=10, pady=10)
+    def setup_add_update_frame(self):
+        self.add_update_frame = tk.Frame(self.left_frame, borderwidth=1, relief="solid")
+        self.add_update_frame.grid(column=0, row=0, padx=10, pady=10, sticky='n')
+        
+        # Label for Equipment List
+        tk.Label(self.add_update_frame, text="Add/Update Equpiment", font=self.heading_font).grid(column=0,row=0,columnspan=4, pady=10)
+
+        au_input_frame = tk.Frame(self.add_update_frame)
+        au_input_frame.grid(row=1,column=0, padx=20)
         
         # Row index for grid placement
         row = 0
         
         # Type Dropdown (Renamed to type_name_dropdown)
-        tk.Label(self.left_frame, text="Type:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.type_name_dropdown = ColumnDropdown(self.left_frame, "type", self.db_manager, row=row, column=1)
+        tk.Label(au_input_frame, text="Type:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.type_name_dropdown = ColumnDropdown(au_input_frame, "type", self.db_manager, row=row, column=1)
         row += 1
         
         # Name Entry
-        tk.Label(self.left_frame, text="Name:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_name = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Name:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_name = tk.Entry(au_input_frame)
         self.entry_name.grid(row=row, column=1)
         row += 1
         
         # Brand Entry
-        tk.Label(self.left_frame, text="Brand:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_brand = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Brand:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_brand = tk.Entry(au_input_frame)
         self.entry_brand.grid(row=row, column=1)
         row += 1
         
         # Model Entry
-        tk.Label(self.left_frame, text="Model:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_model = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Model:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_model = tk.Entry(au_input_frame)
         self.entry_model.grid(row=row, column=1)
         row += 1
         
         # Model Number Entry
-        tk.Label(self.left_frame, text="Model Number:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_model_number = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Model Number:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_model_number = tk.Entry(au_input_frame)
         self.entry_model_number.grid(row=row, column=1)
         row += 1
         
         # Description Entry
-        tk.Label(self.left_frame, text="Description:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_description = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Description:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_description = tk.Entry(au_input_frame)
         self.entry_description.grid(row=row, column=1)
         row += 1
         
         # Serial Number Entry
-        tk.Label(self.left_frame, text="Serial #:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_sn = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Serial #:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_sn = tk.Entry(au_input_frame)
         self.entry_sn.grid(row=row, column=1)
         row += 1
         
         # Weight Entry
-        tk.Label(self.left_frame, text="Weight (lbs):", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_weight = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Weight (lbs):", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_weight = tk.Entry(au_input_frame)
         self.entry_weight.grid(row=row, column=1)
         row += 1
         
         # Status Dropdown
-        tk.Label(self.left_frame, text="Status:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        
+        tk.Label(au_input_frame, text="Status:", font=self.bold_font).grid(row=row, column=0, sticky='e')
         # Initialize the StringVar with a string of spaces of length 15
         self.status_var = tk.StringVar(value=' ' * 15)
-        self.status_dropdown = tk.OptionMenu(self.left_frame, self.status_var, "In Office", "Checked Out", "Under Maintenance", "Retired")
+        self.status_dropdown = tk.OptionMenu(au_input_frame, self.status_var, "In Office", "Checked Out", "Under Maintenance", "Retired")
         # Set the width of the dropdown menu to 15
         self.status_dropdown.config(width=15)
         self.status_dropdown.grid(row=row, column=1, sticky='w')
         row += 1
         
         # Kit Name Dropdown
-        tk.Label(self.left_frame, text="Kit Name:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.kit_name_dropdown = ColumnDropdown(self.left_frame, "kit_name", self.db_manager, row=row, column=1)
+        tk.Label(au_input_frame, text="Kit Name:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.kit_name_dropdown = ColumnDropdown(au_input_frame, "kit_name", self.db_manager, row=row, column=1)
         row += 1
         
         # Purchase Company Entry
-        tk.Label(self.left_frame, text="Purchase Company:", font=self.bold_font).grid(row=row,column=0, sticky='e')
-        self.entry_purchaseCompany = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Purchase Company:", font=self.bold_font).grid(row=row,column=0, sticky='e')
+        self.entry_purchaseCompany = tk.Entry(au_input_frame)
         self.entry_purchaseCompany.grid(row=row, column=1)
         row += 1
         
         # Purchase Date using DateInput Widget
-        tk.Label(self.left_frame, text="Purchase Date:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.purchase_date_input = DateInput(self.left_frame, row=row, column=1)
+        tk.Label(au_input_frame, text="Purchase Date:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.purchase_date_input = DateInput(au_input_frame, row=row, column=1)
         row += 1
     
         # Cost Entry
-        tk.Label(self.left_frame, text="Cost:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_cost = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="Cost:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_cost = tk.Entry(au_input_frame)
         self.entry_cost.grid(row=row, column=1)
         row += 1
     
         # URL Entry
-        tk.Label(self.left_frame, text="URL:", font=self.bold_font).grid(row=row, column=0, sticky='e')
-        self.entry_url = tk.Entry(self.left_frame)
+        tk.Label(au_input_frame, text="URL:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.entry_url = tk.Entry(au_input_frame)
         self.entry_url.grid(row=row, column=1)
         row += 1
     
         # Insurance Checkbox
-        tk.Label(self.left_frame, text="Is Insured?", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        tk.Label(au_input_frame, text="Is Insured?", font=self.bold_font).grid(row=row, column=0, sticky='e')
         self.is_insured_var = tk.BooleanVar(value=False)
-        self.checkbox_insured = tk.Checkbutton(self.left_frame, variable=self.is_insured_var, command=self.toggle_insured)
+        self.checkbox_insured = tk.Checkbutton(au_input_frame, variable=self.is_insured_var, command=self.toggle_insured)
         self.checkbox_insured.grid(row=row, column=1, sticky='w')
         row += 1
         
         # Date Insured Input
-        self.label_date_insured = tk.Label(self.left_frame, text="Date Insured:", font=self.bold_font)
+        self.label_date_insured = tk.Label(au_input_frame, text="Date Insured:", font=self.bold_font)
         self.label_date_insured.grid(row=row, column=0, sticky='e')
         self.label_date_insured.grid_remove()
-        self.date_insured_input = DateInput(self.left_frame, row=row, column=1)
+        self.date_insured_input = DateInput(au_input_frame, row=row, column=1)
         # Initially hide the date insured input
         self.date_insured_input.month_menu.grid(row=row, column=1, sticky="e")
         self.date_insured_input.day_entry.grid(row=row, column=2, sticky="w")
@@ -169,45 +184,63 @@ class MainApplication(tk.Tk):
         self.date_insured_input.day_entry.grid_remove()
         self.date_insured_input.year_entry.grid_remove()
         row += 1
-    
+        
+        au_buttons_frame = tk.Frame(self.add_update_frame)
+        au_buttons_frame.grid(row=2, column=0, padx=10, pady=10)
+        
         # Buttons for Add, Update, Reset
-        self.add_button = tk.Button(self.left_frame, text="Add Equipment", command=self.add_equipment)
-        self.add_button.grid(row=row, column=0)
-        self.update_button = tk.Button(self.left_frame, text="Update Equipment", command=self.update_equipment)
-        self.update_button.grid(row=row, column=1)
+        self.add_button = tk.Button(au_buttons_frame, text="Add Equipment", command=self.add_equipment)
+        self.add_button.grid(row=0, column=0)
+        self.update_button = tk.Button(au_buttons_frame, text="Update Equipment", command=self.update_equipment)
+        self.update_button.grid(row=0, column=1)
         self.update_button.grid_remove()
-        self.reset_button = tk.Button(self.left_frame, text="Reset Fields", command=self.reset_fields)
-        self.reset_button.grid(row=row, column=2)
+        self.reset_button = tk.Button(au_buttons_frame, text="Reset Fields", command=self.reset_fields)
+        self.reset_button.grid(row=0, column=2)
+        
+    def setup_window_frame(self):
+        self.window_frame = tk.Frame(self.left_frame)
+        self.window_frame.grid(column=0, row=1, padx=10, pady=10)
+        
+        row=0
+        
+        self.shipping_button = tk.Button(self.window_frame, text="Shipping", command=self.open_shipping_window)
+        self.shipping_button.grid(column=0, row=row, padx=10)
         row += 1
         
-    def setup_right_frame(self):
-        self.right_frame = tk.Frame(self, borderwidth=1, relief="solid")
-        self.right_frame.grid(column = 1, row = 0, rowspan=2, padx=10, pady=10)
+    def setup_middle_frame(self):
+        self.middle_frame = tk.Frame(self, borderwidth=1, relief="solid")
+        self.middle_frame.grid(column = 1, row = 0, rowspan=2, padx=10, pady=10, sticky='n')
         
         # Label for Equipment List
-        tk.Label(self.right_frame, text="Equipment List", font=self.bold_font).grid(column=0,row=0)
+        tk.Label(self.middle_frame, text="Equipment List", font=self.heading_font).grid(column=0,row=0,columnspan=2, pady=10)
+        
+        mid_filter_frame = tk.Frame(self.middle_frame)
+        mid_filter_frame.grid(column=0,row=1)
         
         # Kit Name Dropdown
         self.kit_var = tk.StringVar(value=self.kit_names[0])
-        self.kit_dropdown = tk.OptionMenu(self.right_frame, self.kit_var, *self.kit_names, command=lambda _: self.refresh_equipment_list())
-        self.kit_dropdown.grid(column=0,row=1)
+        self.kit_dropdown = tk.OptionMenu(mid_filter_frame, self.kit_var, *self.kit_names, command=lambda _: self.refresh_equipment_list())
+        self.kit_dropdown.grid(column=0,row=1, padx=40)
         
         # Type Dropdown
         self.type_var = tk.StringVar(value=self.types[0])
-        self.type_dropdown = tk.OptionMenu(self.right_frame, self.type_var, *self.types, command=lambda _: self.refresh_equipment_list())
+        self.type_dropdown = tk.OptionMenu(mid_filter_frame, self.type_var, *self.types, command=lambda _: self.refresh_equipment_list())
         self.type_dropdown.grid(column=1,row=1)
         
         # Equipment Listbox
-        self.equipment_listbox = tk.Listbox(self.right_frame, font=self.value_font, width=50, height=50)
+        self.equipment_listbox = tk.Listbox(self.middle_frame, font=self.value_font, width=50, height=50)
         self.equipment_listbox.grid(row=2, column=0, columnspan=2, padx=10, pady=10)
         self.equipment_listbox.bind('<<ListboxSelect>>', self.on_select)
         
-        # Edit and Delete Buttons
-        self.edit_button = tk.Button(self.right_frame, text="Edit Equipment", command=self.edit_equipment)
-        self.edit_button.grid(row=3, column=0)
+        mid_buttons_frame = tk.Frame(self.middle_frame)
+        mid_buttons_frame.grid(row=3, column=0, padx=10, pady=10)
         
-        self.delete_button = tk.Button(self.right_frame, text="Delete Equipment", command=self.delete_equipment)
-        self.delete_button.grid(row=3, column=1)
+        # Edit and Delete Buttons
+        self.edit_button = tk.Button(mid_buttons_frame, text="Edit Equipment", command=self.edit_equipment)
+        self.edit_button.grid(row=0, column=0, padx=20)
+        
+        self.delete_button = tk.Button(mid_buttons_frame, text="Delete Equipment", command=self.delete_equipment)
+        self.delete_button.grid(row=0, column=1)
         
         # Initial Populate Listbox
         self.refresh_equipment_list()
@@ -453,6 +486,7 @@ class MainApplication(tk.Tk):
         
         # Now use equipment_tuple for further processing
         # self.populate_fields_for_edit(equipment_tuple)
+        self.right_frame.grid()
         display_image(self.image_frame, equipment_tuple[1])  # Assuming the name is at index 1
         self.display_details(selected_id)
         
@@ -492,16 +526,6 @@ class MainApplication(tk.Tk):
                 # Create and place the label for the column name
                 label = tk.Label(self.container_frame, text=col_name + ":", font=self.bold_font)
                 label.grid(row=index, column=0, sticky="w")
-            
-    def setup_bottom_frame(self):
-        self.bottom_frame = tk.Frame(self)
-        self.bottom_frame.grid(column=0,row=1, padx=10, pady=10)
-        
-        row=0
-        
-        self.shipping_button = tk.Button(self.bottom_frame, text="Shipping", command=self.open_shipping_window)
-        self.shipping_button.grid(column=0, row=row, padx=10)
-        row += 1
 
     def create_scrollable_frame(self, parent, row, column, rowspan, columnspan):
         # Create a frame to contain the Canvas and Scrollbar
