@@ -133,3 +133,22 @@ class DatabaseManager:
         # Execute the query
         self.execute_query(query, params)
         
+    # Part of DatabaseManager class in db.py
+        
+    def get_boxes(self):
+        query = "SELECT DISTINCT box_number FROM equipment WHERE box_number IS NOT NULL ORDER BY box_number"
+        try:
+            return self.fetch_data(query)
+        except Error as e:
+            print(f"Error fetching box numbers: {e}")
+            return []
+        
+    def get_items_in_box(self, box_id):
+        query = "SELECT name, weight FROM equipment WHERE box_number = %s"
+        try:
+            return self.fetch_data(query, (box_id,))
+        except Error as e:
+            print(f"Error fetching items for box {box_id}: {e}")
+            return []
+        
+        
