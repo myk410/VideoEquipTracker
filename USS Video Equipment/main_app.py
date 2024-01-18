@@ -207,6 +207,76 @@ class MainApplication(tk.Tk):
         self.shipping_button.grid(column=0, row=row, padx=10)
         row += 1
         
+        self.boxes_button = tk.Button(self.window_frame, text="Boxes", command=self.open_boxes_window)
+        self.boxes_button.grid(column=1, row=0, padx=10)
+        
+    def open_boxes_window(self):
+        self.boxes_window = tk.Toplevel(self)
+        self.boxes_window.title("Box Management")
+        
+        # Create a Listbox for boxes
+        self.boxes_listbox = tk.Listbox(self.boxes_window, width=50, height=15)
+        self.boxes_listbox.grid(row=0, column=0, padx=10, pady=10)
+        self.boxes_listbox.bind('<<ListboxSelect>>', self.on_box_select)
+        
+        self.box_listbox = tk.Listbox(self.boxes_window, width=50, height=15)
+        self.box_listbox.grid(row=0, column=1, padx=10, pady=10)
+        
+        # Populate the boxes listbox
+        self.populate_boxes_listbox()
+        
+        # Label to display the total weight
+        self.total_weight_label = tk.Label(self.boxes_window, text="Total Weight: 0 lbs")
+        self.total_weight_label.grid(row=1, column=1, padx=10, pady=10)  # Adjust position as needed
+        
+        # Frame for displaying equipment items in the selected box
+        self.box_items_frame = tk.Frame(self.boxes_window)
+        self.box_items_frame.grid(row=1, column=0, padx=10, pady=10)
+    
+    def populate_boxes_listbox(self):
+        self.boxes_listbox.delete(0, tk.END)
+        max_length = 0  # Variable to store the length of the longest item
+        upper_limit = 30  # Upper limit for the width
+        boxes = self.db_manager.get_boxes()  # Implement this method in your DatabaseManager
+        for box in boxes:
+            item_text = f"Box {box[0]}"
+            max_length = max(max_length, len(item_text))
+            self.boxes_listbox.insert(tk.END, item_text)
+        self.boxes_listbox.config(width=min(max_length, upper_limit))
+    
+    def get_selected_box_id(self):
+        try:
+            selected = self.boxes_listbox.get(self.boxes_listbox.curselection())
+            box_id = selected.split(" ")[1]  # Assuming the format is "Box <id>"
+            return box_id
+        except tk.TclError:
+            messagebox.showerror("Error", "No box selected")
+            return None
+        
+    
+    def on_box_select(self, event):
+        # Clear the box_listbox first
+        self.box_listbox.delete(0, tk.END)
+        
+        box_id = self.get_selected_box_id()
+        if not box_id:
+            return  # Exit if no box is selected
+        
+        items = self.db_manager.get_items_in_box(box_id)
+        
+        # Assuming that each item is a tuple in the format (name, weight)
+        total_weight = round(sum(item[1] for item in items if item[1] is not None), 2)
+        
+        # Update total weight label
+        self.total_weight_label.config(text=f"Total Weight: {total_weight} lbs")
+        
+        # Populate box_listbox with items
+        for item in items:
+            item_text = f"{item[0]} - {item[1]} lbs"  # item[0] is name, item[1] is weight
+            self.box_listbox.insert(tk.END, item_text)
+            
+        
+        
     def setup_middle_frame(self):
         self.middle_frame = tk.Frame(self, borderwidth=1, relief="solid")
         self.middle_frame.grid(column = 1, row = 0, rowspan=2, padx=10, pady=10, sticky='n')
