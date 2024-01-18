@@ -32,9 +32,10 @@ def initialize_fonts():
 
     :return: Tuple of (bold_font, value_font).
     """
+    heading_font = tkFont.Font(family="Helvetica", size=14, weight="bold", underline=1)
     bold_font = tkFont.Font(family="Helvetica", size=12, weight="bold")
     value_font = tkFont.Font(family="Helvetica", size=12)
-    return bold_font, value_font
+    return heading_font, bold_font, value_font
 
 def display_image(image_frame, item_name):
     """
