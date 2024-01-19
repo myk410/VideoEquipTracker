@@ -6,15 +6,19 @@ from utils import initialize_fonts, display_image
 from widgets import DateInput, ColumnDropdown
 import webbrowser
 
+# Things to do:
+#   • Sort eqiupment alphabetically
+
 class MainApplication(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("USS Video Production Equipment Tracker")
+        self.title("Video Production Equipment Tracker")
         self.heading_font, self.bold_font, self.value_font = initialize_fonts()
         self.db_manager = DatabaseManager()
         self.current_editing_id = None  # Add this line
         self.kit_names = ["All Kits"] + self.get_kit_names()
         self.types = ["All Types"] + self.db_manager.get_unique_types()
+        self.equipment_IDs = []
     
         self.setup_frames()
         
@@ -185,6 +189,13 @@ class MainApplication(tk.Tk):
         self.date_insured_input.year_entry.grid_remove()
         row += 1
         
+        # Owner Dropdown
+        tk.Label(au_input_frame, text="Owner:", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        self.owner_name_dropdown = tk.StringVar(value="None")
+        self.owner_dropdown = tk.OptionMenu(au_input_frame, self.owner_name_dropdown, "Enue Studios", "US Sailing")
+        self.owner_dropdown.grid(row=row, column=1, sticky='w')
+        row += 1
+        
         au_buttons_frame = tk.Frame(self.add_update_frame)
         au_buttons_frame.grid(row=2, column=0, padx=10, pady=10)
         
@@ -196,6 +207,61 @@ class MainApplication(tk.Tk):
         self.update_button.grid_remove()
         self.reset_button = tk.Button(au_buttons_frame, text="Reset Fields", command=self.reset_fields)
         self.reset_button.grid(row=0, column=2)
+        
+    def setup_middle_frame(self):
+        self.middle_frame = tk.Frame(self, borderwidth=1, relief="solid")
+        self.middle_frame.grid(column = 1, row = 0, rowspan=2, padx=10, pady=10, sticky='n')
+        
+        row = 0
+        
+        # Label for Equipment List
+        tk.Label(self.middle_frame, text="Equipment List", font=self.heading_font).grid(column=0,row=row,columnspan=2, pady=10)
+        row += 1 
+        
+        # Label for Filters
+        tk.Label(self.middle_frame, text="Filters", font=self.bold_font).grid(column=0,row=row,columnspan=2, pady=5, padx=20, sticky='w')
+        row += 1 
+        
+        mid_filter_frame = tk.Frame(self.middle_frame)
+        mid_filter_frame.grid(column=0,row=row)
+        row += 1 
+        
+        # Kit Name Dropdown
+        self.kit_var = tk.StringVar(value=self.kit_names[0])
+        self.kit_dropdown = tk.OptionMenu(mid_filter_frame, self.kit_var, *self.kit_names, command=lambda _: self.refresh_equipment_list())
+        self.kit_dropdown.grid(column=0,row=1)
+        
+        # Type Dropdown
+        self.type_var = tk.StringVar(value=self.types[0])
+        self.type_dropdown = tk.OptionMenu(mid_filter_frame, self.type_var, *self.types, command=lambda _: self.refresh_equipment_list())
+        self.type_dropdown.grid(column=1,row=1)
+        
+        self.owners = ["All Owners"] + self.db_manager.get_unique_owners()
+        
+        # Owner Dropdown
+        self.owner_var = tk.StringVar(value=self.owners[0])
+        self.owner_dropdown = tk.OptionMenu(mid_filter_frame, self.owner_var, *self.owners, command=lambda _: self.refresh_equipment_list())
+        self.owner_dropdown.grid(column=2, row=1)
+        
+        # Equipment Listbox
+        self.equipment_listbox = tk.Listbox(self.middle_frame, font=self.value_font, width=50, height=50)
+        self.equipment_listbox.grid(row=row, column=0, columnspan=2, padx=10, pady=10)
+        self.equipment_listbox.bind('<<ListboxSelect>>', self.on_select)
+        row += 1 
+        
+        mid_buttons_frame = tk.Frame(self.middle_frame)
+        mid_buttons_frame.grid(row=row, column=0, padx=10, pady=10)
+        row += 1 
+        
+        # Edit and Delete Buttons
+        self.edit_button = tk.Button(mid_buttons_frame, text="Edit Equipment", command=self.edit_equipment)
+        self.edit_button.grid(row=0, column=0, padx=20)
+        
+        self.delete_button = tk.Button(mid_buttons_frame, text="Delete Equipment", command=self.delete_equipment)
+        self.delete_button.grid(row=0, column=1)
+        
+        # Initial Populate Listbox
+        self.refresh_equipment_list()
         
     def setup_window_frame(self):
         self.window_frame = tk.Frame(self.left_frame)
@@ -275,46 +341,6 @@ class MainApplication(tk.Tk):
             item_text = f"{item[0]} - {item[1]} lbs"  # item[0] is name, item[1] is weight
             self.box_listbox.insert(tk.END, item_text)
             
-        
-        
-    def setup_middle_frame(self):
-        self.middle_frame = tk.Frame(self, borderwidth=1, relief="solid")
-        self.middle_frame.grid(column = 1, row = 0, rowspan=2, padx=10, pady=10, sticky='n')
-        
-        # Label for Equipment List
-        tk.Label(self.middle_frame, text="Equipment List", font=self.heading_font).grid(column=0,row=0,columnspan=2, pady=10)
-        
-        mid_filter_frame = tk.Frame(self.middle_frame)
-        mid_filter_frame.grid(column=0,row=1)
-        
-        # Kit Name Dropdown
-        self.kit_var = tk.StringVar(value=self.kit_names[0])
-        self.kit_dropdown = tk.OptionMenu(mid_filter_frame, self.kit_var, *self.kit_names, command=lambda _: self.refresh_equipment_list())
-        self.kit_dropdown.grid(column=0,row=1, padx=40)
-        
-        # Type Dropdown
-        self.type_var = tk.StringVar(value=self.types[0])
-        self.type_dropdown = tk.OptionMenu(mid_filter_frame, self.type_var, *self.types, command=lambda _: self.refresh_equipment_list())
-        self.type_dropdown.grid(column=1,row=1)
-        
-        # Equipment Listbox
-        self.equipment_listbox = tk.Listbox(self.middle_frame, font=self.value_font, width=50, height=50)
-        self.equipment_listbox.grid(row=2, column=0, columnspan=2, padx=10, pady=10)
-        self.equipment_listbox.bind('<<ListboxSelect>>', self.on_select)
-        
-        mid_buttons_frame = tk.Frame(self.middle_frame)
-        mid_buttons_frame.grid(row=3, column=0, padx=10, pady=10)
-        
-        # Edit and Delete Buttons
-        self.edit_button = tk.Button(mid_buttons_frame, text="Edit Equipment", command=self.edit_equipment)
-        self.edit_button.grid(row=0, column=0, padx=20)
-        
-        self.delete_button = tk.Button(mid_buttons_frame, text="Delete Equipment", command=self.delete_equipment)
-        self.delete_button.grid(row=0, column=1)
-        
-        # Initial Populate Listbox
-        self.refresh_equipment_list()
-        
     def delete_equipment(self):
         selected_id = self.get_selected_equipment_id()
         if selected_id:
@@ -361,7 +387,8 @@ class MainApplication(tk.Tk):
             'cost': self.entry_cost.get(),
             'website_url': self.entry_url.get(),
             'date_insured': self.date_insured_input.get_date() if self.is_insured_var.get() else None,
-            'type': self.type_var.get()
+            'type': self.type_var.get(),
+            'owner': self.owner_var.get()
         }
         
         # Validate and convert 'cost' field
@@ -374,8 +401,9 @@ class MainApplication(tk.Tk):
         # Call DatabaseManager method to add equipment
         self.db_manager.add_or_update_equipment(equipment_data, is_update=False)
         self.refresh_equipment_list()
-        self.reset_fields()
         
+        # Show confirmation popup
+        messagebox.showinfo("Success", "Equipment added successfully")
 
     def edit_equipment(self):
         selected_id = self.get_selected_equipment_id()
@@ -412,15 +440,18 @@ class MainApplication(tk.Tk):
         # Populate the fields with the equipment details
         self.entry_name.insert(0, equipment_tuple[1])  # Name
         self.entry_brand.insert(0, equipment_tuple[3])  # Brand
-        self.entry_model.insert(0, equipment_tuple[4])  # Model
+        model_value = str(equipment_tuple[4]) if equipment_tuple[4] is not None else ""
+        self.entry_model.insert(0, model_value)
         model_number = equipment_tuple[16] if equipment_tuple[16] else ''
         self.entry_model_number.delete(0, tk.END)
         self.entry_model_number.insert(0, model_number)  # Model Number
         self.entry_description.insert(0, equipment_tuple[14])  # Description
-        self.entry_sn.insert(0, equipment_tuple[5])  # Serial Number
+        serial_number_value = str(equipment_tuple[5]) if equipment_tuple[5] is not None else ""
+        self.entry_sn.insert(0, serial_number_value)
         self.entry_weight.insert(0, str(equipment_tuple[28]))
         self.status_var.set(equipment_tuple[11])  # Status
-        self.entry_purchaseCompany.insert(0, equipment_tuple[6])  # Purchase Company
+        purchase_company_value = str(equipment_tuple[6]) if equipment_tuple[6] is not None else ""
+        self.entry_purchaseCompany.insert(0, purchase_company_value)
         if equipment_tuple[7]:  # Checking if the date_of_purchase is not None
             self.purchase_date_input.set_date(equipment_tuple[7])
         else:
@@ -448,7 +479,8 @@ class MainApplication(tk.Tk):
         if isinstance(kit_name, tuple) and len(kit_name) > 0:
             kit_name = kit_name[0]
         self.kit_name_dropdown.var.set(kit_name)
-    
+        
+        self.owner_name_dropdown.set(equipment_tuple[29])
     
         # Show update button, hide add button
         self.update_button.grid()
@@ -457,7 +489,6 @@ class MainApplication(tk.Tk):
         if self.current_editing_id is None:
             messagebox.showerror("Error", "No equipment selected for editing")
             return
-        print(self.kit_name_dropdown.var.get())
         # Collecting data from UI elements
         updated_data = {
             'name': self.entry_name.get(),
@@ -474,7 +505,8 @@ class MainApplication(tk.Tk):
             'cost': self.entry_cost.get(),
             'website_url': self.entry_url.get(),
             'date_insured': self.date_insured_input.get_date() if self.is_insured_var.get() else None,
-            'type': self.type_name_dropdown.var.get()
+            'type': self.type_name_dropdown.var.get(),
+            'owner': self.owner_name_dropdown.get()
         }
         
         # Update equipment
@@ -485,7 +517,8 @@ class MainApplication(tk.Tk):
         
         # Find and select the updated equipment in the listbox
         for index, item in enumerate(self.equipment_listbox.get(0, tk.END)):
-            if int(item.split(":")[0]) == self.current_editing_id:
+            selected = self.equipment_IDs[index]
+            if int(selected) == self.current_editing_id:
                 self.equipment_listbox.selection_set(index)
                 self.equipment_listbox.see(index)
                 self.equipment_listbox.activate(index)  # This line activates the selection
@@ -498,16 +531,11 @@ class MainApplication(tk.Tk):
         
         # Show confirmation popup
         messagebox.showinfo("Success", "Equipment updated successfully")
-        
-    def reset_type_dropdown(self):
-        default_value = "All Types"  # Replace with your actual default value
-        self.type_var.set(default_value)
-        
     
     def get_selected_equipment_id(self):
         try:
-            selected = self.equipment_listbox.get(self.equipment_listbox.curselection())
-            return int(selected.split(":")[0])  # Ensure it's an integer
+            selected = self.equipment_IDs[self.equipment_listbox.curselection()[0]]
+            return int(selected)  # Ensure it's an integer
         except tk.TclError:
             messagebox.showerror("Error", "No equipment selected")
             return None
@@ -517,23 +545,34 @@ class MainApplication(tk.Tk):
         
         selected_kit_name = self.kit_var.get()
         selected_type = self.type_var.get()
+        selected_owner = self.owner_var.get()
         
         # Adjust the query based on the selected filters
         query = "SELECT id, name FROM equipment"
+        conditions = []
         params = []
-        if selected_kit_name != "All Kits" or selected_type != "All Types":
-            conditions = []
-            if selected_kit_name != "All Kits":
-                conditions.append("kit_name = %s")
-                params.append(selected_kit_name)
-            if selected_type != "All Types":
-                conditions.append("type = %s")
-                params.append(selected_type)
+        
+        if selected_kit_name != "All Kits":
+            conditions.append("kit_name = %s")
+            params.append(selected_kit_name)
+        if selected_type != "All Types":
+            conditions.append("type = %s")
+            params.append(selected_type)
+        if selected_owner != "All Owners":
+            conditions.append("owner = %s")
+            params.append(selected_owner)
+            
+        if conditions:
             query += " WHERE " + " AND ".join(conditions)
+            
+        query += " ORDER BY name"  # Add this line to sort by name
+            
+        self.equipment_IDs = []
             
         equipment_list = self.db_manager.fetch_data(query, tuple(params))
         for equipment in equipment_list:
-            display_text = f"{equipment[0]}: {equipment[1]}"  # Equipment ID and Name
+            display_text = f"{equipment[1]}"
+            self.equipment_IDs.append(f"{equipment[0]}")
             self.equipment_listbox.insert(tk.END, display_text)
             
     def on_select(self, event):
@@ -541,7 +580,8 @@ class MainApplication(tk.Tk):
             return
         
         selected_index = self.equipment_listbox.curselection()[0]
-        selected_id = self.equipment_listbox.get(selected_index).split(":")[0]
+
+        selected_id = self.equipment_IDs[selected_index]
         
         equipment_details = self.db_manager.get_equipment_details(selected_id)
         if not equipment_details or len(equipment_details) == 0:
@@ -570,26 +610,28 @@ class MainApplication(tk.Tk):
             
         equipment_details = self.db_manager.get_equipment_details(equipment_id)
         if equipment_details:
-            # Assuming equipment_details[0] is a tuple with all the column values
             equipment_tuple = equipment_details[0]
-            column_names = ["ID", "Name", "Type", "Brand", "Model", "Serial Number",
-                            "Purchase Company", "Date of Purchase", "Cost",  # Added 'Weight' here
-                            "Date Insured", "Storage Location", "Status",
-                            "Current Holder", "Current Condition", "Description",
-                            "Website URL", "Model Number", "Kit Name", "Carrier",
-                            "Tracking Number", "Shipping Address", "Shipping City",
-                            "Shipping State", "Shipping ZIP", "Shipped Date",
-                            "Box Number", "Destination Name", "Shipping Status", "Weight"]
+            
+            column_names = [
+                "ID", "Name", "Type", "Brand", "Model", "Serial Number",
+                "Purchase Company", "Date of Purchase", "Cost", "Date Insured", 
+                "Storage Location", "Status", "Current Holder", "Current Condition",
+                "Description", "Website URL", "Model Number", "Kit Name", "Carrier",
+                "Tracking Number", "Shipping Address", "Shipping City",
+                "Shipping State", "Shipping ZIP", "Shipped Date",
+                "Box Number", "Destination Name", "Shipping Status", "Weight",
+                "Owner"  # Add "Owner" here
+            ]
             
             for index, (col_name, detail) in enumerate(zip(column_names, equipment_tuple)):
+                label = tk.Label(self.container_frame, text=col_name + ":", font=self.bold_font)
+                label.grid(row=index, column=0, sticky="w")
+                
                 if col_name == "Website URL" and detail:
-                    # For Website URL, create a clickable hyperlink
                     hyperlink = tk.Label(self.container_frame, text=detail, fg="blue", cursor="hand2")
                     hyperlink.grid(row=index, column=1, sticky="w")
-                    # Update the lambda function to properly capture the current 'detail' value
                     hyperlink.bind("<Button-1>", lambda e, url=detail: webbrowser.open(url) if url else None)
                 else:
-                    # For all other columns, display the detail as text
                     value_label = tk.Label(self.container_frame, text=str(detail), font=self.value_font)
                     value_label.grid(row=index, column=1, sticky="w")
                     
@@ -843,11 +885,14 @@ class MainApplication(tk.Tk):
         
         # Unchecking and hiding the insured checkbox and related fields
         self.is_insured_var.set(False)
-        self.toggle_insured()\
+        self.toggle_insured()
         
         # Reset type_dropdown
         default_type = "All Types"  # Replace with your actual default value
         self.type_var.set(default_type)
+        
+        self.owner_var.set("All Owners")  # Reset the owner dropdown
+        
         
         
 if __name__ == "__main__":
