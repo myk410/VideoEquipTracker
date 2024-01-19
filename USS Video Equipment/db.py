@@ -57,39 +57,37 @@ class DatabaseManager:
         return self.fetch_data(query)
 
     def add_or_update_equipment(self, data, is_update=False, equipment_id=None):
-        conn = self.create_connection()
-        cursor = conn.cursor()
+            conn = self.create_connection()
+            cursor = conn.cursor()
         
-        # Convert weight to float (or the appropriate data type)
-        try:
-            data['weight'] = float(data['weight']) if data['weight'] else 0.0
-        except ValueError:
-            print("Invalid weight value. Setting to 0.0")
-            data['weight'] = 0.0
-        
-        try:
-            # Convert kit_name to string outside the params tuple
-            data['kit_name'] = str(data['kit_name'])
-            
-            if is_update:
-                # Update existing equipment
-                query = """UPDATE equipment SET name=%s, brand=%s, model=%s, description=%s, serial_number=%s, purchase_company=%s, date_of_purchase=%s, cost=%s, website_url=%s, date_insured=%s, status=%s, model_number=%s, kit_name=%s, type=%s, weight=%s WHERE id=%s"""
-                params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], equipment_id)
-            else:
-                # Add new equipment
-                query = """INSERT INTO equipment (name, brand, model, description, serial_number, purchase_company, date_of_purchase, cost, website_url, date_insured, status, model_number, kit_name, type)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-                params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'],
-                                    data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'],
-                                    data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'])
+            # Convert weight to float (or the appropriate data type)
+            try:
+                data['weight'] = float(data['weight']) if data['weight'] else 0.0
+            except ValueError:
+                print("Invalid weight value. Setting to 0.0")
+                data['weight'] = 0.0
                 
-            cursor.execute(query, params)
-            conn.commit()
-        except Error as e:
-            print(f"Error: {e}")
-        finally:
-            cursor.close()
-            conn.close()
+            try:
+                # Convert kit_name to string outside the params tuple
+                data['kit_name'] = str(data['kit_name'])
+            
+                if is_update:
+                    # Update existing equipment
+                    query = """UPDATE equipment SET name=%s, brand=%s, model=%s, description=%s, serial_number=%s, purchase_company=%s, date_of_purchase=%s, cost=%s, website_url=%s, date_insured=%s, status=%s, model_number=%s, kit_name=%s, type=%s, weight=%s, owner=%s WHERE id=%s"""
+                    params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], data['owner'], equipment_id)
+                else:
+                    # Add new equipment
+                    query = """INSERT INTO equipment (name, brand, model, description, serial_number, purchase_company, date_of_purchase, cost, website_url, date_insured, status, model_number, kit_name, type, weight, owner) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+                    params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], data['owner'])
+                    
+                cursor.execute(query, params)
+                conn.commit()
+            except Error as e:
+                    print(f"Error: {e}")
+            finally:
+                    cursor.close()
+                    conn.close()
+                
             
 
     def delete_equipment(self, equipment_id):
@@ -150,5 +148,9 @@ class DatabaseManager:
         except Error as e:
             print(f"Error fetching items for box {box_id}: {e}")
             return []
+        
+    def get_unique_owners(self):
+        query = "SELECT DISTINCT owner FROM equipment WHERE owner IS NOT NULL"
+        return [item[0] for item in self.fetch_data(query)]
         
         
