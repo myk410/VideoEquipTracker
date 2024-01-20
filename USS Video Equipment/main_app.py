@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import filedialog
 from db import DatabaseManager
+from db import host_ct, user_ct, passwd_ct, database_ct
 from utils import initialize_fonts, display_image
 from widgets import DateInput, ColumnDropdown
 import webbrowser
@@ -11,16 +12,28 @@ from fpdf import FPDF
 import subprocess
 import modules.connect as ct
 from datetime import datetime
-
-# Things to do:
+import re
 
 def backup_table_to_sql(host, user, password, database, table, output_file):
     try:
+        # Run mysqldump to create the SQL file
         command = f"mysqldump -h {host} -u {user} -p{password} {database} {table} > {output_file}"
         subprocess.run(command, shell=True, check=True)
+        
+        # Read the created SQL file
+        with open(output_file, 'r', encoding='utf-8') as file:
+            sql_content = file.read()
+            
+        # Replace the collation
+        updated_sql_content = re.sub(r'utf8mb4_0900_ai_ci', 'utf8mb4_general_ci', sql_content)
+        
+        # Write the modified content back to the file
+        with open(output_file, 'w', encoding='utf-8') as file:
+            file.write(updated_sql_content)
+            
     except subprocess.CalledProcessError as e:
         print("An error occurred while executing mysqldump:", e)
-
+        
 class MainApplication(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -1045,7 +1058,7 @@ class MainApplication(tk.Tk):
         directory = filedialog.askdirectory()
         if directory:
             output_file = f"{directory}/equipment_backup.sql"  # Specify filename
-            backup_table_to_sql(ct.host, ct.user, ct.passwd, ct.database, 'equipment', output_file)
+            backup_table_to_sql(host_ct, user_ct, passwd_ct, database_ct, 'equipment', output_file)
             tk.messagebox.showinfo("Success", f"SQL file saved to {output_file}")
         else:
             tk.messagebox.showwarning("No Directory", "No directory was selected.")
