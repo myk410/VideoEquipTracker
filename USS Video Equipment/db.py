@@ -103,11 +103,6 @@ class DatabaseManager:
         kit_names = [str(row[0]) for row in self.fetch_data(query)]  # Convert to string
         return kit_names
     
-    def get_unique_types(self):
-        query = "SELECT DISTINCT type FROM equipment WHERE type IS NOT NULL"
-        results = self.fetch_data(query)
-        return [result[0] for result in results]  # Assuming each result is a tuple with the type as the first element
-    
     def update_shipping_info(self, equipment_id, shipping_info):
         # Start constructing the query
         query = "UPDATE equipment SET "
@@ -126,7 +121,7 @@ class DatabaseManager:
         
         # Add the WHERE clause to target the specific equipment item
         query += " WHERE id = %s"
-        params.append(equipment_id)
+        params.append(equipment_id)        
         
         # Execute the query
         self.execute_query(query, params)
@@ -142,7 +137,7 @@ class DatabaseManager:
             return []
         
     def get_items_in_box(self, box_id):
-        query = "SELECT name, weight FROM equipment WHERE box_number = %s"
+        query = "SELECT name, weight, kit_name FROM equipment WHERE box_number = %s"
         try:
             return self.fetch_data(query, (box_id,))
         except Error as e:
@@ -151,6 +146,20 @@ class DatabaseManager:
         
     def get_unique_owners(self):
         query = "SELECT DISTINCT owner FROM equipment WHERE owner IS NOT NULL"
+        return sorted([item[0] for item in self.fetch_data(query)])
+    
+    def get_unique_types(self):
+        query = "SELECT DISTINCT type FROM equipment WHERE type IS NOT NULL"
+        results = self.fetch_data(query)
+        return sorted([result[0] for result in results])
+    
+    def get_unique_names(self):
+        query = "SELECT DISTINCT name FROM equipment"
         return [item[0] for item in self.fetch_data(query)]
+    
+    def update_equipment_name(self, old_name, new_name):
+        query = "UPDATE equipment SET name = %s WHERE name = %s"
+        self.execute_query(query, (new_name, old_name))
+        
         
         
