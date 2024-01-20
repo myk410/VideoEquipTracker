@@ -76,7 +76,7 @@ class ColumnDropdown:
 
     def update_options(self):
         unique_values = self.db_manager.get_unique_values(self.column_name)
-        self.options = ['None'] + [str(value[0]) for value in unique_values if value and isinstance(value, tuple)]
+        self.options = ['None'] + sorted([str(value[0]) for value in unique_values if value and isinstance(value, tuple)])
         self.var.set(self.options[0])
 
     def create_add_popup(self):
