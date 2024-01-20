@@ -1,13 +1,25 @@
 # main_app.py
 import tkinter as tk
 from tkinter import messagebox
+from tkinter import filedialog
 from db import DatabaseManager
 from utils import initialize_fonts, display_image
 from widgets import DateInput, ColumnDropdown
 import webbrowser
+import os
+from fpdf import FPDF
+import subprocess
+import modules.connect as ct
+from datetime import datetime
 
 # Things to do:
-#   • Sort eqiupment alphabetically
+
+def backup_table_to_sql(host, user, password, database, table, output_file):
+    try:
+        command = f"mysqldump -h {host} -u {user} -p{password} {database} {table} > {output_file}"
+        subprocess.run(command, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print("An error occurred while executing mysqldump:", e)
 
 class MainApplication(tk.Tk):
     def __init__(self):
@@ -17,8 +29,9 @@ class MainApplication(tk.Tk):
         self.db_manager = DatabaseManager()
         self.current_editing_id = None  # Add this line
         self.kit_names = ["All Kits"] + self.get_kit_names()
-        self.types = ["All Types"] + self.db_manager.get_unique_types()
+        self.types = ["All Types"] + self.get_unique_types()
         self.equipment_IDs = []
+        self.selected_name_for_rename = None
     
         self.setup_frames()
         
@@ -33,7 +46,7 @@ class MainApplication(tk.Tk):
             return "Unknown Column"
     
     def get_kit_names(self):
-        return self.db_manager.fetch_kit_names()
+        return sorted(self.db_manager.fetch_kit_names())
         
     def setup_frames(self):
         self.setup_left_frame()  # Create and grid left_frame first
@@ -270,11 +283,17 @@ class MainApplication(tk.Tk):
         row=0
         
         self.shipping_button = tk.Button(self.window_frame, text="Shipping", command=self.open_shipping_window)
-        self.shipping_button.grid(column=0, row=row, padx=10)
+        self.shipping_button.grid(column=0, row=row, padx=10, pady=10)
         row += 1
         
         self.boxes_button = tk.Button(self.window_frame, text="Boxes", command=self.open_boxes_window)
-        self.boxes_button.grid(column=1, row=0, padx=10)
+        self.boxes_button.grid(column=1, row=0, padx=10, pady=10)
+        
+        self.rename_button = tk.Button(self.window_frame, text="Rename Equipment", command=self.open_rename_window)
+        self.rename_button.grid(column=2, row=0, padx=10, pady=10)  # Adjust grid parameters as needed
+        
+        self.sql_button = tk.Button(self.window_frame, text="Export SQL File", command=self.save_sql_file)
+        self.sql_button.grid(column=0, row=1, padx=10, pady=10)  # Adjust the grid parameters as needed
         
     def open_boxes_window(self):
         self.boxes_window = tk.Toplevel(self)
@@ -288,6 +307,10 @@ class MainApplication(tk.Tk):
         self.box_listbox = tk.Listbox(self.boxes_window, width=50, height=15)
         self.box_listbox.grid(row=0, column=1, padx=10, pady=10)
         
+        # PDF Button
+        pdf_button = tk.Button(self.boxes_window, text="Generate PDF", command=self.generate_boxes_pdf)
+        pdf_button.grid(row=2, column=1, padx=10, pady=10)  # Adjust grid parameters as needed
+        
         # Populate the boxes listbox
         self.populate_boxes_listbox()
         
@@ -298,7 +321,127 @@ class MainApplication(tk.Tk):
         # Frame for displaying equipment items in the selected box
         self.box_items_frame = tk.Frame(self.boxes_window)
         self.box_items_frame.grid(row=1, column=0, padx=10, pady=10)
-    
+        
+    def generate_boxes_pdf(self):
+        directory = filedialog.askdirectory()
+        if not directory:
+            messagebox.showwarning("Warning", "No directory selected")
+            return
+        
+        filename = f"{directory}/boxes_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        
+        # Fetch box data
+        boxes = self.db_manager.get_boxes()  # Modify as per your method to fetch box data
+        
+        for box in boxes:
+            box_id = box[0]
+            items_in_box = self.db_manager.get_items_in_box(box_id)  # Fetch items in the box
+            
+            # Distinguish between individual items and kits
+            kits_in_box = set()
+            individual_items = set()
+            for item in items_in_box:
+                kit_name = item[2]  # Assuming kit_name is at index 17
+                if kit_name and kit_name != "None":
+                    kits_in_box.add(kit_name)
+                else:
+                    individual_items.add(item[0])  # Assuming item name is at index 0
+                    
+            # Writing to PDF
+            pdf.set_font("Arial", 'B', size=12)
+            pdf.cell(0, 7, txt=f"Box {box_id}:", ln=True, align='L')
+            total_weight = sum(item[1] for item in items_in_box if item[1] is not None and len(item) > 1)
+            pdf.set_font("Arial", size=10)
+            
+            for kit_name in kits_in_box:
+                pdf.cell(0, 5, txt=f"  - {kit_name} (Kit)", ln=True, align='L')
+                
+            for item_name in individual_items:
+                pdf.cell(0, 5, txt=f"  - {item_name}", ln=True, align='L')
+                
+            pdf.set_font("Arial",'I', size=10)
+            pdf.cell(0, 8, txt=f"Total Weight: {total_weight:.2f} lbs", ln=True, align='L')
+                
+            pdf.cell(0, 5, txt="", ln=True, align='L')
+                
+        pdf.output(name=filename, dest='F').encode('latin1')
+        messagebox.showinfo("Success", f"PDF generated at {filename}")
+        
+    def open_rename_window(self):
+        self.rename_window = tk.Toplevel(self)
+        self.rename_window.title("Rename Equipment")
+        
+        # Listbox to display unique equipment names
+        self.rename_listbox = tk.Listbox(self.rename_window, width=50, height=15)
+        self.rename_listbox.grid(row=0, column=0, padx=10, pady=10)
+        self.rename_listbox.bind('<<ListboxSelect>>', self.on_rename_listbox_select)
+        
+        # Populate the listbox with unique names sorted alphabetically
+        unique_names = self.db_manager.get_unique_names()  # Method to be implemented in DatabaseManager
+        for name in sorted(unique_names):
+            self.rename_listbox.insert(tk.END, name)
+            
+        # Entry field for new name
+        self.new_name_entry = tk.Entry(self.rename_window)
+        self.new_name_entry.grid(row=1, column=0, padx=10, pady=10)
+        
+        # Button to execute renaming
+        rename_button = tk.Button(self.rename_window, text="Rename", command=self.execute_rename)
+        rename_button.grid(row=2, column=0, padx=10, pady=10)
+        
+    def on_rename_listbox_select(self, event):
+        # Get the currently selected item
+        selection = event.widget.curselection()
+        if selection:
+            index = selection[0]
+            selected_name = event.widget.get(index)
+            self.selected_name_for_rename = selected_name  # Store the selected name
+            # Set the selected name in the entry field
+            self.new_name_entry.delete(0, tk.END)
+            self.new_name_entry.insert(0, selected_name)
+            
+    def execute_rename(self):
+        old_name = self.selected_name_for_rename
+        new_name = self.new_name_entry.get()
+        
+        if old_name and new_name and new_name != old_name:
+            # Proceed with the renaming logic
+            self.db_manager.update_equipment_name(old_name, new_name)
+            self.rename_image_file(old_name, new_name)
+            
+            # Refresh the listboxes with updated names
+            self.refresh_rename_listbox()
+            self.refresh_equipment_list()  # Refresh the main equipment listbox
+            
+            # Reset the selected name for rename
+            self.selected_name_for_rename = None
+            
+            messagebox.showinfo("Success", f"'{old_name}' has been renamed to '{new_name}'")
+        else:
+            messagebox.showerror("Input Error", "Invalid input. Please ensure the new name is different.")
+            
+    def refresh_rename_listbox(self):
+        # Clear existing items
+        self.rename_listbox.delete(0, tk.END)
+        
+        # Fetch updated unique names and repopulate the listbox
+        unique_names = self.db_manager.get_unique_names()
+        for name in sorted(unique_names):
+            self.rename_listbox.insert(tk.END, name)
+            
+        # Clear the new name entry field
+        self.new_name_entry.delete(0, tk.END)
+                
+    def rename_image_file(self, old_name, new_name):
+        for ext in ['.png', '.jpg']:
+            old_path = os.path.join('Pics', f'{old_name}{ext}')
+            new_path = os.path.join('Pics', f'{new_name}{ext}')
+            if os.path.exists(old_path):
+                os.rename(old_path, new_path)
+                break
+                
     def populate_boxes_listbox(self):
         self.boxes_listbox.delete(0, tk.END)
         max_length = 0  # Variable to store the length of the longest item
@@ -368,7 +511,30 @@ class MainApplication(tk.Tk):
     
     def get_unique_types(self):
         query = "SELECT DISTINCT type FROM equipment WHERE type IS NOT NULL"
-        return [item[0] for item in self.fetch_data(query)]
+        return sorted([item[0] for item in self.db_manager.fetch_data(query)])
+    
+    def refresh_dropdowns(self):
+        # Refresh Kit Names
+        self.kit_names = ["All Kits"] + self.get_kit_names()
+        self.update_option_menu(self.kit_dropdown, self.kit_var, self.kit_names)
+        
+        # Refresh Types
+        unique_types = self.get_unique_types()
+        if "All Types" not in unique_types:
+            unique_types.insert(0, "All Types")
+        self.types = unique_types
+        self.update_option_menu(self.type_dropdown, self.type_var, self.types)
+        
+        # Refresh Owners
+        self.owners = ["All Owners"] + self.get_unique_owners()
+        self.update_option_menu(self.owner_dropdown, self.owner_var, self.owners)
+        
+    def update_option_menu(self, dropdown, variable, options):
+        menu = dropdown["menu"]
+        menu.delete(0, "end")
+        for option in options:
+            menu.add_command(label=option, command=lambda value=option: variable.set(value))
+        variable.set(options[0])
 
     def add_equipment(self):
         # Collect data from UI elements
@@ -387,9 +553,14 @@ class MainApplication(tk.Tk):
             'cost': self.entry_cost.get(),
             'website_url': self.entry_url.get(),
             'date_insured': self.date_insured_input.get_date() if self.is_insured_var.get() else None,
-            'type': self.type_var.get(),
-            'owner': self.owner_var.get()
+            'type': self.type_name_dropdown.var.get(),
+            'owner': self.owner_name_dropdown.get()
         }
+        
+        # Validate 'type' and 'owner' to ensure they are not set to 'All Types' or 'All Owners'
+        if equipment_data['type'] == 'All Types' or equipment_data['owner'] == 'All Owners':
+            messagebox.showerror("Invalid Selection", "Please select a valid type and owner.")
+            return
         
         # Validate and convert 'cost' field
         try:
@@ -668,6 +839,13 @@ class MainApplication(tk.Tk):
         self.shipping_window = tk.Toplevel(self)
         self.shipping_window.title("Shipping Information")
         
+        input_frame = tk.Frame(self.shipping_window)
+        input_frame.grid(column=0,row=0, padx=20, pady=10, sticky='ns')
+        items_frame = tk.Frame(self.shipping_window)
+        items_frame.grid(column=1,row=0, padx=20, pady=10, sticky='ns')
+        buttons_frame = tk.Frame(self.shipping_window)
+        buttons_frame.grid(column=0,row=1,columnspan=2,pady=5)
+        
         # Initialize row index for grid placement
         row = 0
         
@@ -684,92 +862,93 @@ class MainApplication(tk.Tk):
         self.update_shipping_status = tk.BooleanVar(value=False)
         
         # Carrier Input with Checkbox
-        self.carrier_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_carrier)
+        self.carrier_checkbox = tk.Checkbutton(input_frame, variable=self.update_carrier)
         self.carrier_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="Carrier:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_carrier = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="Carrier:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_carrier = tk.Entry(input_frame)
         self.entry_carrier.grid(row=row, column=2)
         row += 1
         
         # Tracking Number Input with Checkbox
-        self.tracking_number_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_tracking_number)
+        self.tracking_number_checkbox = tk.Checkbutton(input_frame, variable=self.update_tracking_number)
         self.tracking_number_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="Tracking Number:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_tracking_number = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="Tracking Number:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_tracking_number = tk.Entry(input_frame)
         self.entry_tracking_number.grid(row=row, column=2)
         row += 1
         
         # Shipping Address Input with Checkbox
-        self.shipping_address_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_shipping_address)
+        self.shipping_address_checkbox = tk.Checkbutton(input_frame, variable=self.update_shipping_address)
         self.shipping_address_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="Shipping Address:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_shipping_address = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="Shipping Address:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_shipping_address = tk.Entry(input_frame)
         self.entry_shipping_address.grid(row=row, column=2)
         row += 1
         
         # City Input with Checkbox
-        self.city_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_city)
+        self.city_checkbox = tk.Checkbutton(input_frame, variable=self.update_city)
         self.city_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="City:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_shipping_city = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="City:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_shipping_city = tk.Entry(input_frame)
         self.entry_shipping_city.grid(row=row, column=2)
         row += 1
         
         # State Input with Checkbox
-        self.state_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_state)
+        self.state_checkbox = tk.Checkbutton(input_frame, variable=self.update_state)
         self.state_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="State:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_shipping_state = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="State:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_shipping_state = tk.Entry(input_frame)
         self.entry_shipping_state.grid(row=row, column=2)
         row += 1
         
         # ZIP Code Input with Checkbox
-        self.zip_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_zip)
+        self.zip_checkbox = tk.Checkbutton(input_frame, variable=self.update_zip)
         self.zip_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="ZIP Code:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_shipping_zip = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="ZIP Code:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_shipping_zip = tk.Entry(input_frame)
         self.entry_shipping_zip.grid(row=row, column=2)
         row += 1
         
         # Shipped Date Input with Checkbox
-        self.shipped_date_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_shipping_date)
+        self.shipped_date_checkbox = tk.Checkbutton(input_frame, variable=self.update_shipping_date)
         self.shipped_date_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="Shipped Date:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.shipped_date_input = DateInput(self.shipping_window, row=row, column=2)
+        tk.Label(input_frame, text="Shipped Date:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.shipped_date_input = DateInput(input_frame, row=row, column=2)
         row += 1
         
         # Box Number Input with Checkbox
-        self.box_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_box)
+        self.box_checkbox = tk.Checkbutton(input_frame, variable=self.update_box)
         self.box_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="Box Number:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_box_number = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="Box Number:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_box_number = tk.Entry(input_frame)
         self.entry_box_number.grid(row=row, column=2)
         row += 1
         
         # Destination Name Input with Checkbox
-        self.destination_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_destination)
+        self.destination_checkbox = tk.Checkbutton(input_frame, variable=self.update_destination)
         self.destination_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="Destination Name:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_destination_name = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="Destination Name:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_destination_name = tk.Entry(input_frame)
         self.entry_destination_name.grid(row=row, column=2)
         row += 1
         
         # Shipping Status Input with Checkbox
-        self.shipping_status_checkbox = tk.Checkbutton(self.shipping_window, variable=self.update_shipping_status)
+        self.shipping_status_checkbox = tk.Checkbutton(input_frame, variable=self.update_shipping_status)
         self.shipping_status_checkbox.grid(row=row, column=0, sticky='w')
-        tk.Label(self.shipping_window, text="Shipping Status:", font=self.bold_font).grid(row=row, column=1, sticky='e')
-        self.entry_shipping_status = tk.Entry(self.shipping_window)
+        tk.Label(input_frame, text="Shipping Status:", font=self.bold_font).grid(row=row, column=1, sticky='e')
+        self.entry_shipping_status = tk.Entry(input_frame)
         self.entry_shipping_status.grid(row=row, column=2)
-        row += 1
+        
+        row = 0
         
         # Button to apply shipping details
-        apply_button = tk.Button(self.shipping_window, text="Apply Shipping Info", command=self.apply_shipping_info)
-        apply_button.grid(column=1, columnspan=2, row=row, pady=10)
+        apply_button = tk.Button(buttons_frame, text="Apply Shipping Info", command=self.apply_shipping_info)
+        apply_button.grid(column=1, columnspan=2, row=row, pady=10, sticky='nsew')
         
         # View mode radio buttons for selecting individual items or kits
         self.view_mode = tk.IntVar(value=0)  # 0 for individual items, 1 for kits
-        tk.Radiobutton(self.shipping_window, text="Individual Items", variable=self.view_mode, value=0, command=self.populate_shipping_listbox).grid(row=0, column=3, sticky='w')
-        tk.Radiobutton(self.shipping_window, text="Kits", variable=self.view_mode, value=1, command=self.populate_shipping_listbox).grid(row=0, column=4, sticky='w')
+        tk.Radiobutton(items_frame, text="Individual Items", variable=self.view_mode, value=0, command=self.populate_shipping_listbox).grid(row=0, column=0, padx=10, pady=10)
+        tk.Radiobutton(items_frame, text="Kits", variable=self.view_mode, value=1, command=self.populate_shipping_listbox).grid(row=0, column=1, padx=10, pady=10)
         row += 1
     
         # Create a Listbox to display equipment or kits
@@ -777,12 +956,11 @@ class MainApplication(tk.Tk):
         #self.shipping_listbox.grid(column=3, row=row, columnspan=2, padx=10, pady=10)
     
         # Create scrollable frame for checkboxes
-        self.checkbox_frame = self.create_scrollable_frame(self.shipping_window, 2, 3, row, 2)
+        self.checkbox_frame = self.create_scrollable_frame(items_frame, 1, 0, row, 2)
         self.checkbox_vars = {}
     
         # Populate the Listbox with checkboxes
         self.populate_shipping_listbox()
-        
         
     def populate_shipping_listbox(self):
         # Clear existing checkboxes
@@ -792,46 +970,47 @@ class MainApplication(tk.Tk):
         self.checkbox_vars.clear()
         
         if self.view_mode.get() == 0:
-            # Populate with individual items
+            # Populate with individual items, sorted by name
             equipment_list = self.db_manager.get_equipment_list()
-            for equipment in equipment_list:
+            sorted_equipment_list = sorted(equipment_list, key=lambda item: item[1])  # Sort by name (item[1])
+            for id, name in sorted_equipment_list:
                 var = tk.IntVar()
-                checkbox = tk.Checkbutton(self.checkbox_frame, text=f"{equipment[0]}: {equipment[1]}", variable=var)
+                checkbox = tk.Checkbutton(self.checkbox_frame, text=name, variable=var)
                 checkbox.pack(anchor='w')
-                self.checkbox_vars[equipment[0]] = var
+                self.checkbox_vars[(name, id)] = var
         else:
-            # Populate with kits
+            # Populate with kits, sorted alphabetically
             kit_list = self.db_manager.fetch_kit_names()
-            for kit in kit_list:
+            sorted_kit_list = sorted(kit_list)  # Sort kits alphabetically
+            for kit_name in sorted_kit_list:
                 var = tk.IntVar()
-                checkbox = tk.Checkbutton(self.checkbox_frame, text=kit, variable=var)
+                checkbox = tk.Checkbutton(self.checkbox_frame, text=kit_name, variable=var)
                 checkbox.pack(anchor='w')
-                self.checkbox_vars[kit] = var
-            
+                self.checkbox_vars[kit_name] = var
+                
     def apply_shipping_info(self):
-        selected_items = [key for key, value in self.checkbox_vars.items() if value.get() == 1]
-        
-        # Dictionary to hold the fields to update
         shipping_info = self.collect_shipping_info()
         
-        # Check if any field was selected for update
         if not shipping_info:
             messagebox.showwarning("No Selection", "No fields selected for update.")
             return
         
-        # If view mode is set to kits, update all items in the selected kits
-        if self.view_mode.get() == 1:
-            for kit in selected_items:
+        # For individual items
+        if self.view_mode.get() == 0:
+            selected_item_ids = [item_id for (item_name, item_id), value in self.checkbox_vars.items() if value.get() == 1]
+            for equipment_id in selected_item_ids:
+                self.db_manager.update_shipping_info(equipment_id, shipping_info)
+                
+        # For kits
+        else:
+            selected_kits = [kit_name for kit_name, value in self.checkbox_vars.items() if value.get() == 1]
+            for kit in selected_kits:
                 equipment_ids = self.fetch_equipment_ids_by_kit(kit)
                 for equipment_id in equipment_ids:
                     self.db_manager.update_shipping_info(equipment_id, shipping_info)
-        else:
-            # Update the database for each selected individual item
-            for item_id in selected_items:
-                self.db_manager.update_shipping_info(item_id, shipping_info)
-                
+                    
         messagebox.showinfo("Success", "Shipping info updated successfully")
-        
+                
     def collect_shipping_info(self):
         # Collect the shipping information based on the selected checkboxes
         shipping_info = {}
@@ -862,6 +1041,15 @@ class MainApplication(tk.Tk):
         query = "SELECT id FROM equipment WHERE kit_name = %s"
         return [row[0] for row in self.db_manager.fetch_data(query, (kit_name,))]
         
+    def save_sql_file(self):
+        directory = filedialog.askdirectory()
+        if directory:
+            output_file = f"{directory}/equipment_backup.sql"  # Specify filename
+            backup_table_to_sql(ct.host, ct.user, ct.passwd, ct.database, 'equipment', output_file)
+            tk.messagebox.showinfo("Success", f"SQL file saved to {output_file}")
+        else:
+            tk.messagebox.showwarning("No Directory", "No directory was selected.")
+                        
     def reset_fields(self):
         # Clearing text entries
         self.entry_name.delete(0, tk.END)
