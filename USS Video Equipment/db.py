@@ -3,22 +3,42 @@ import mysql.connector
 from mysql.connector import Error
 import modules.connect as ct
 
+remote = ct.remote
+local = ct.local
+server = local # local or remote
+host_ct = server.host
+user_ct = server.user
+passwd_ct = server.passwd
+database_ct = server.database
+
+class MySQLConnection:
+    def __init__(self, host, user, passwd, database):
+        self.host = host
+        self.user = user
+        self.passwd = passwd
+        self.database = database
+        
+    def __enter__(self):
+        self.conn = mysql.connector.connect(
+            host=self.host, 
+            user=self.user, 
+            passwd=self.passwd, 
+            database=self.database
+        )
+        return self.conn
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.conn.close()
+
 class DatabaseManager:
     def __init__(self):
-        self.host = ct.host
-        self.user = ct.user
-        self.passwd = ct.passwd
-        self.database = ct.database
+        self.host = host_ct
+        self.user = user_ct
+        self.passwd = passwd_ct
+        self.database = database_ct
 
     def create_connection(self):
-        try:
-            conn = mysql.connector.connect(
-                host=self.host, user=self.user, passwd=self.passwd, database=self.database
-            )
-            return conn
-        except Error as e:
-            print(f"Error connecting to MySQL: {e}")
-            return None
+        return MySQLConnection(self.host, self.user, self.passwd, self.database)
 
     def execute_query(self, query, params=None):
         try:
@@ -39,7 +59,7 @@ class DatabaseManager:
         except Error as e:
             print(f"Error fetching data: {e}")
             return []
-
+        
     def get_equipment_details(self, equipment_id):
         query = "SELECT * FROM equipment WHERE id = %s"
         try:
