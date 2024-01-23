@@ -13,6 +13,8 @@ import subprocess
 import modules.connect as ct
 from datetime import datetime
 import re
+import pandas as pd
+from tkinter import ttk
 
 def backup_table_to_sql(host, user, password, database, table, output_file):
     try:
@@ -45,6 +47,7 @@ class MainApplication(tk.Tk):
         self.types = ["All Types"] + self.get_unique_types()
         self.equipment_IDs = []
         self.selected_name_for_rename = None
+        self.purchased_filter_var = tk.StringVar(value="Show Purchased")
     
         self.setup_frames()
         
@@ -171,6 +174,13 @@ class MainApplication(tk.Tk):
         self.kit_name_dropdown = ColumnDropdown(au_input_frame, "kit_name", self.db_manager, row=row, column=1)
         row += 1
         
+        # Purchased
+        tk.Label(au_input_frame, text="Not Purchased:", font=self.bold_font).grid(row=row,column=0, sticky='e')
+        self.not_purchased_var = tk.BooleanVar()
+        self.checkbox_not_purchased = tk.Checkbutton(au_input_frame, variable=self.not_purchased_var)
+        self.checkbox_not_purchased.grid(row=row, column=1, sticky='w')  # Adjust 'next_row' to the correct row number
+        row += 1
+        
         # Purchase Company Entry
         tk.Label(au_input_frame, text="Purchase Company:", font=self.bold_font).grid(row=row,column=0, sticky='e')
         self.entry_purchaseCompany = tk.Entry(au_input_frame)
@@ -195,7 +205,7 @@ class MainApplication(tk.Tk):
         row += 1
     
         # Insurance Checkbox
-        tk.Label(au_input_frame, text="Is Insured?", font=self.bold_font).grid(row=row, column=0, sticky='e')
+        tk.Label(au_input_frame, text="Is Insured:", font=self.bold_font).grid(row=row, column=0, sticky='e')
         self.is_insured_var = tk.BooleanVar(value=False)
         self.checkbox_insured = tk.Checkbutton(au_input_frame, variable=self.is_insured_var, command=self.toggle_insured)
         self.checkbox_insured.grid(row=row, column=1, sticky='w')
@@ -269,6 +279,12 @@ class MainApplication(tk.Tk):
         self.owner_dropdown = tk.OptionMenu(mid_filter_frame, self.owner_var, *self.owners, command=lambda _: self.refresh_equipment_list())
         self.owner_dropdown.grid(column=2, row=1)
         
+        # Purchased Filter Dropdown
+        self.purchased_filter_options = ["Show All", "Show Purchased", "Show Not Purchased"]
+        self.purchased_filter_dropdown = ttk.Combobox(mid_filter_frame, textvariable=self.purchased_filter_var, values=self.purchased_filter_options, state="readonly")
+        self.purchased_filter_dropdown.grid(column=0, row=2, padx=10, pady=10, columnspan=3)
+        self.purchased_filter_dropdown.bind("<<ComboboxSelected>>", lambda _: self.refresh_equipment_list())
+        
         # Equipment Listbox
         self.equipment_listbox = tk.Listbox(self.middle_frame, font=self.value_font, width=50, height=50)
         self.equipment_listbox.grid(row=row, column=0, columnspan=2, padx=10, pady=10)
@@ -307,6 +323,10 @@ class MainApplication(tk.Tk):
         
         self.sql_button = tk.Button(self.window_frame, text="Export SQL File", command=self.save_sql_file)
         self.sql_button.grid(column=0, row=1, padx=10, pady=10)  # Adjust the grid parameters as needed
+        
+        self.export_excel_button = tk.Button(self.window_frame, text="Export to Excel", command=self.export_to_excel)
+        self.export_excel_button.grid(column=1, row=1, padx=10, pady=10)  # Adjust the grid parameters as needed
+        
         
     def open_boxes_window(self):
         self.boxes_window = tk.Toplevel(self)
@@ -567,7 +587,9 @@ class MainApplication(tk.Tk):
             'website_url': self.entry_url.get(),
             'date_insured': self.date_insured_input.get_date() if self.is_insured_var.get() else None,
             'type': self.type_name_dropdown.var.get(),
-            'owner': self.owner_name_dropdown.get()
+            'owner': self.owner_name_dropdown.get(),
+            'not_purchased': self.not_purchased_var.get()
+            
         }
         
         # Validate 'type' and 'owner' to ensure they are not set to 'All Types' or 'All Owners'
@@ -643,6 +665,10 @@ class MainApplication(tk.Tk):
             
         self.entry_cost.insert(0, str(equipment_tuple[8]))  # Cost
         self.entry_url.insert(0, equipment_tuple[15])  # URL
+        
+        # Populate the not_purchased checkbox
+        not_purchased_index = 30
+        self.not_purchased_var.set(equipment_tuple[not_purchased_index])
     
         # Handling insured date (if applicable)
         if equipment_tuple[9]:  # Date Insured
@@ -690,7 +716,8 @@ class MainApplication(tk.Tk):
             'website_url': self.entry_url.get(),
             'date_insured': self.date_insured_input.get_date() if self.is_insured_var.get() else None,
             'type': self.type_name_dropdown.var.get(),
-            'owner': self.owner_name_dropdown.get()
+            'owner': self.owner_name_dropdown.get(),
+            'not_purchased': self.not_purchased_var.get()
         }
         
         # Update equipment
@@ -730,6 +757,7 @@ class MainApplication(tk.Tk):
         selected_kit_name = self.kit_var.get()
         selected_type = self.type_var.get()
         selected_owner = self.owner_var.get()
+        selected_purchased_filter = self.purchased_filter_var.get()  # Get the selected value from the dropdown
         
         # Adjust the query based on the selected filters
         query = "SELECT id, name FROM equipment"
@@ -746,13 +774,18 @@ class MainApplication(tk.Tk):
             conditions.append("owner = %s")
             params.append(selected_owner)
             
+        # Adjusting the query based on the purchased filter
+        if selected_purchased_filter == "Show Purchased":
+            conditions.append("not_purchased = FALSE")
+        elif selected_purchased_filter == "Show Not Purchased":
+            conditions.append("not_purchased = TRUE")
+            
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
             
         query += " ORDER BY name"  # Add this line to sort by name
-            
+        
         self.equipment_IDs = []
-            
         equipment_list = self.db_manager.fetch_data(query, tuple(params))
         for equipment in equipment_list:
             display_text = f"{equipment[1]}"
@@ -783,7 +816,6 @@ class MainApplication(tk.Tk):
         self.right_frame.grid()
         display_image(self.image_frame, equipment_tuple[1])  # Assuming the name is at index 1
         self.display_details(selected_id)
-        
     
     def update_image(self, item_name):
         display_image(self.image_frame, item_name)
@@ -798,19 +830,22 @@ class MainApplication(tk.Tk):
             
             column_names = [
                 "ID", "Name", "Type", "Brand", "Model", "Serial Number",
-                "Purchase Company", "Date of Purchase", "Cost", "Date Insured", 
+                "Purchase Company", "Date of Purchase", "Cost", "Date Insured",
                 "Storage Location", "Status", "Current Holder", "Current Condition",
                 "Description", "Website URL", "Model Number", "Kit Name", "Carrier",
                 "Tracking Number", "Shipping Address", "Shipping City",
                 "Shipping State", "Shipping ZIP", "Shipped Date",
                 "Box Number", "Destination Name", "Shipping Status", "Weight",
-                "Owner"  # Add "Owner" here
+                "Owner", "Not Purchased"
             ]
             
             for index, (col_name, detail) in enumerate(zip(column_names, equipment_tuple)):
                 label = tk.Label(self.container_frame, text=col_name + ":", font=self.bold_font)
                 label.grid(row=index, column=0, sticky="w")
                 
+                if col_name == "Not Purchased":
+                    detail = "Yes" if detail else "No"  # Assuming detail is a boolean
+                    
                 if col_name == "Website URL" and detail:
                     hyperlink = tk.Label(self.container_frame, text=detail, fg="blue", cursor="hand2")
                     hyperlink.grid(row=index, column=1, sticky="w")
@@ -819,10 +854,6 @@ class MainApplication(tk.Tk):
                     value_label = tk.Label(self.container_frame, text=str(detail), font=self.value_font)
                     value_label.grid(row=index, column=1, sticky="w")
                     
-                # Create and place the label for the column name
-                label = tk.Label(self.container_frame, text=col_name + ":", font=self.bold_font)
-                label.grid(row=index, column=0, sticky="w")
-
     def create_scrollable_frame(self, parent, row, column, rowspan, columnspan):
         # Create a frame to contain the Canvas and Scrollbar
         frame_container = tk.Frame(parent)
@@ -847,6 +878,13 @@ class MainApplication(tk.Tk):
         
         return scrollable_frame
     
+    def export_to_excel(self):
+        data = self.db_manager.fetch_all_equipment()
+        df = pd.DataFrame(data, columns=["Name", "Brand", "Model", "Model Number", "Serial Number", "Purchase Company", "Date of Purchase", "Cost", "Owner", "Website URL"])
+        file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")])
+        if file_path:
+            df.to_excel(file_path, index=False)
+            messagebox.showinfo("Success", f"Data exported successfully to {file_path}")
 
     def open_shipping_window(self):
         self.shipping_window = tk.Toplevel(self)
