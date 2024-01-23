@@ -77,7 +77,7 @@ class DatabaseManager:
         return self.fetch_data(query)
 
     def add_or_update_equipment(self, data, is_update=False, equipment_id=None):
-            conn = self.create_connection()
+        with self.create_connection() as conn:
             cursor = conn.cursor()
         
             # Convert weight to float (or the appropriate data type)
@@ -93,12 +93,12 @@ class DatabaseManager:
             
                 if is_update:
                     # Update existing equipment
-                    query = """UPDATE equipment SET name=%s, brand=%s, model=%s, description=%s, serial_number=%s, purchase_company=%s, date_of_purchase=%s, cost=%s, website_url=%s, date_insured=%s, status=%s, model_number=%s, kit_name=%s, type=%s, weight=%s, owner=%s WHERE id=%s"""
-                    params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], data['owner'], equipment_id)
+                    query = """UPDATE equipment SET name=%s, brand=%s, model=%s, description=%s, serial_number=%s, purchase_company=%s, date_of_purchase=%s, cost=%s, website_url=%s, date_insured=%s, status=%s, model_number=%s, kit_name=%s, type=%s, weight=%s, owner=%s, not_purchased=%s WHERE id=%s"""
+                    params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], data['owner'], data['not_purchased'], equipment_id)
                 else:
                     # Add new equipment
-                    query = """INSERT INTO equipment (name, brand, model, description, serial_number, purchase_company, date_of_purchase, cost, website_url, date_insured, status, model_number, kit_name, type, weight, owner) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-                    params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], data['owner'])
+                    query = """INSERT INTO equipment (name, brand, model, description, serial_number, purchase_company, date_of_purchase, cost, website_url, date_insured, status, model_number, kit_name, type, weight, owner, not_purchased) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+                    params = (data['name'], data['brand'], data['model'], data['description'], data['serial_number'], data['purchase_company'], data['date_of_purchase'], data['cost'], data['website_url'], data['date_insured'], data['status'], data['model_number'], data['kit_name'], data['type'], data['weight'], data['owner'], data['not_purchased'])
                     
                 cursor.execute(query, params)
                 conn.commit()
@@ -180,6 +180,10 @@ class DatabaseManager:
     def update_equipment_name(self, old_name, new_name):
         query = "UPDATE equipment SET name = %s WHERE name = %s"
         self.execute_query(query, (new_name, old_name))
+        
+    def fetch_all_equipment(self):
+        query = "SELECT name, brand, model, model_number, serial_number, purchase_company, date_of_purchase, cost, owner, website_url FROM equipment"
+        return self.fetch_data(query)
         
         
         
