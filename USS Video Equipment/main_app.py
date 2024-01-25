@@ -840,6 +840,8 @@ class MainApplication(tk.Tk):
             ]
             
             for index, (col_name, detail) in enumerate(zip(column_names, equipment_tuple)):
+                
+                
                 label = tk.Label(self.container_frame, text=col_name + ":", font=self.bold_font)
                 label.grid(row=index, column=0, sticky="w")
                 
@@ -989,6 +991,12 @@ class MainApplication(tk.Tk):
         tk.Label(input_frame, text="Shipping Status:", font=self.bold_font).grid(row=row, column=1, sticky='e')
         self.entry_shipping_status = tk.Entry(input_frame)
         self.entry_shipping_status.grid(row=row, column=2)
+        row += 1
+        
+        # Button to set all shipping information to null
+        set_null_button = tk.Button(input_frame, text="Reset Shipping Info", command=self.set_shipping_info_to_null)
+        set_null_button.grid(column=0, row=row, columnspan=3, padx=10, pady=10, sticky='w')
+        
         
         row = 0
         
@@ -996,10 +1004,17 @@ class MainApplication(tk.Tk):
         apply_button = tk.Button(buttons_frame, text="Apply Shipping Info", command=self.apply_shipping_info)
         apply_button.grid(column=1, columnspan=2, row=row, pady=10, sticky='nsew')
         
+        row = 0
+        
         # View mode radio buttons for selecting individual items or kits
         self.view_mode = tk.IntVar(value=0)  # 0 for individual items, 1 for kits
-        tk.Radiobutton(items_frame, text="Individual Items", variable=self.view_mode, value=0, command=self.populate_shipping_listbox).grid(row=0, column=0, padx=10, pady=10)
-        tk.Radiobutton(items_frame, text="Kits", variable=self.view_mode, value=1, command=self.populate_shipping_listbox).grid(row=0, column=1, padx=10, pady=10)
+        tk.Radiobutton(items_frame, text="Individual Items", variable=self.view_mode, value=0, command=self.populate_shipping_listbox).grid(row=row, column=0, padx=10, pady=10)
+        tk.Radiobutton(items_frame, text="Kits", variable=self.view_mode, value=1, command=self.populate_shipping_listbox).grid(row=row, column=1, padx=10, pady=10)
+        row += 1
+
+        # Button to select all checkboxes
+        select_all_button = tk.Button(items_frame, text="Select All", command=self.select_all_shipping_items)
+        select_all_button.grid(column=0, row=row, padx=10, pady=10, columnspan=2)
         row += 1
     
         # Create a Listbox to display equipment or kits
@@ -1007,11 +1022,37 @@ class MainApplication(tk.Tk):
         #self.shipping_listbox.grid(column=3, row=row, columnspan=2, padx=10, pady=10)
     
         # Create scrollable frame for checkboxes
-        self.checkbox_frame = self.create_scrollable_frame(items_frame, 1, 0, row, 2)
+        self.checkbox_frame = self.create_scrollable_frame(items_frame, row, 0, row, 2)
         self.checkbox_vars = {}
     
         # Populate the Listbox with checkboxes
         self.populate_shipping_listbox()
+        
+    def set_shipping_info_to_null(self):
+        # Define the fields to set to null
+        fields_to_nullify = ['carrier', 'tracking_number', 'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip', 'shipped_date', 'box_number', 'shipping_destination_name', 'shipping_status']
+        
+        # Construct the nullify query
+        query_parts = [f"{field} = NULL" for field in fields_to_nullify]
+        update_query = "UPDATE equipment SET " + ", ".join(query_parts) + " WHERE id = %s"
+        
+        # Apply to individual items or kits based on view mode
+        if self.view_mode.get() == 0:
+            selected_item_ids = [item_id for (item_name, item_id), value in self.checkbox_vars.items() if value.get() == 1]
+            for equipment_id in selected_item_ids:
+                self.db_manager.execute_query(update_query, (equipment_id,))
+        else:
+            selected_kits = [kit_name for kit_name, value in self.checkbox_vars.items() if value.get() == 1]
+            for kit in selected_kits:
+                equipment_ids = self.fetch_equipment_ids_by_kit(kit)
+                for equipment_id in equipment_ids:
+                    self.db_manager.execute_query(update_query, (equipment_id,))
+                    
+        messagebox.showinfo("Success", "Shipping info set to null successfully")
+        
+    def select_all_shipping_items(self):
+        for var in self.checkbox_vars.values():
+            var.set(1)  # Set each checkbox variable to checked
         
     def populate_shipping_listbox(self):
         # Clear existing checkboxes
